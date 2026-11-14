@@ -1504,6 +1504,16 @@ namespace DOL.GS
         public static bool InvitedGamebotKeepsWaiting165(bool raiserInGroup, long deadForMilliseconds) =>
             deadForMilliseconds < (raiserInGroup ? HiredCompanions165.BodyFadeMilliseconds : NoRaiserReleaseMilliseconds);
 
+        /// <summary>/allrelease (Living Server, port): a dead world gamebot runs the release its death timer would have run, at
+        /// once; the timer ends itself once the bot is alive. Hired companions and /spawn helpers keep their own rules.</summary>
+        public bool ReleaseNow()
+        {
+            if (IsAlive || ObjectState != eObjectState.Active || !IsWorldGamebot || IsTemporaryGroupHelper)
+                return false;
+            ReleaseToNearestBindAndReturn();
+            return IsAlive;
+        }
+
         private bool HasViableResurrector()
         {
             if (Group == null)

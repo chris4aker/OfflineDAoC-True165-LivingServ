@@ -20,7 +20,8 @@ namespace DOL.GS.Commands;
     "/lstest remember - your target (or the nearest gamebot) remembers a good group with you; walk away and back to be greeted",
     "/lstest greet | gossip - a remembered bot near you greets you; a bot that likes you mentions you in /faction",
     "/lstest deed <solo|group|streak|ganked|silly|fell> - a bot near you tells the realm it saw that",
-    "/lstest holiday <name|off> - bots treat today as that holiday (newyear valentines stpatricks aprilfools easter midsummer halloween thanksgiving christmas)")]
+    "/lstest holiday <name|off> - bots treat today as that holiday (newyear valentines stpatricks aprilfools easter midsummer halloween thanksgiving christmas)",
+    "/lstest leeroy [now] - the next realm raid has a Leeroy (now: one gathering for its final boss charges at once)")]
 public sealed class LivingServerTestCommandHandler : AbstractCommandHandler, ICommandHandler
 {
     public void OnCommand(GameClient client, string[] args)
@@ -89,6 +90,20 @@ public sealed class LivingServerTestCommandHandler : AbstractCommandHandler, ICo
                 return;
             case "holiday":
                 Holiday(client, arg);
+                return;
+            case "leeroy":
+                if (Off(AutonomousRaidLeeroy.On, "bot_living_leeroy") is string leeroyOff)
+                    Say(client, leeroyOff);
+                else if (arg == "now")
+                {
+                    AutonomousRaidLeeroy.ChargeNow();
+                    Say(client, "A raid with a Leeroy that is gathering for its final boss charges at once (two raiders there will do).");
+                }
+                else
+                {
+                    AutonomousRaidLeeroy.ForceNextRaid();
+                    Say(client, "The next realm raid to form has a Leeroy. Start one from the launcher's Realm Events tab; he charges once part of the raid has gathered at the final boss (or a landed dragon), or use /lstest leeroy now.");
+                }
                 return;
             // carried over yet; they return with it.
             default:

@@ -2518,6 +2518,10 @@ namespace DOL.GS.ServerProperties
 		[ServerProperty("bots", "bot_living_holidays", "Server life: around Halloween, Thanksgiving, Christmas, New Year and other holidays on your PC's calendar, bots talk about them like 2003 players did and answer your holiday wishes.", true)]
 		public static bool BOT_LIVING_HOLIDAYS;
 
+		/// <summary>Now and then a raider charges the final boss early (AutonomousRaidLeeroy). Off by default in True 1.65.</summary>
+		[ServerProperty("bots", "bot_living_leeroy", "Server life: one end-game raid in twenty has a bot who charges the final boss (or the landed dragon) before the raid is ready, yelling his name, and the raid has to follow him in. Off by default in the True 1.65 edition: it changes how raids go.", false)]
+		public static bool BOT_LIVING_LEEROY;
+
 
 
 

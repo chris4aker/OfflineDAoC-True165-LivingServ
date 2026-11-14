@@ -84,6 +84,11 @@ namespace DOL.GS
         private bool _musterSawCombat;
         private long _musterOutOfCombatSince;
         private int _musterWipes;
+        /// <summary>Living Server (bot_living_leeroy, off by default): this raid rolled a Leeroy for its final encounter.</summary>
+        public bool LeeroyRolled { get; set; }
+        private bool _leeroyDone;
+        /// <summary>The raider who charged, for the realm's word after the raid.</summary>
+        public string LeeroyName { get; private set; }
         // Where the raid came from when the target was chosen: the last chain waypoint before the encounter, or the
         // position the target was proven from. The muster point lies on the way back toward it.
         private Vector3 _approachFrom;
@@ -566,6 +571,28 @@ namespace DOL.GS
             // before, so the first arrivals inside its reach filled the muster themselves.
             int mustered = participants.Count(p => p.IsAlive && p.CurrentRegionID == _region &&
                                                    p.IsWithinRadius(point, FinalMusterRadius) && !p.IsWithinRadius(_target, (int)_musterKeepOut));
+            // Living Server's Leeroy (bot_living_leeroy, off by default): at the final encounter's first muster, once part
+            // of the raid is there, one raider yells and charges in alone; the boss is in the fight, so the muster goes in
+            // after him. A raid that arrives all at once gets him too: he jumps its pull.
+            if (final && LeeroyRolled && !_leeroyDone && FinalWipes == 0 &&
+                AutonomousRaidLeeroy.GoesNow(AutonomousRaidLeeroy.ShouldCharge(mustered, needed, now - _musterSince, _musterWipes, false) ||
+                                             AutonomousRaidLeeroy.JumpsThePull(mustered, needed, _musterWipes, false), mustered))
+            {
+                _leeroyDone = true;
+                GameLiving[] musteredRaiders = participants.Where(p => p.IsAlive && p.CurrentRegionID == _region &&
+                    p.IsWithinRadius(point, FinalMusterRadius) && !p.IsWithinRadius(_target, (int)_musterKeepOut)).ToArray();
+                if (AutonomousRaidLeeroy.Pick(musteredRaiders) is GameBot leeroy && _target is GameNPC boss &&
+                    AutonomousRaidLeeroy.Charge(leeroy, boss, musteredRaiders, _target.CurrentZone?.Description ?? _target.Name))
+                {
+                    LeeroyName = leeroy.Name;
+                    _musterEngaged = true;
+                    _musterEngagedTick = now;
+                    Destination = Front;
+                    log.Info($"REALM_EXPEDITION_LEEROY region={_region} target=\"{_target.Name}\" bot=\"{leeroy.Name}\" mustered={mustered} " +
+                             $"needed={needed} living={living} minutes={(now - _musterSince) / 60_000.0:0.0}");
+                    return false;
+                }
+            }
             if (mustered >= needed)
             {
                 _musterEngaged = true;

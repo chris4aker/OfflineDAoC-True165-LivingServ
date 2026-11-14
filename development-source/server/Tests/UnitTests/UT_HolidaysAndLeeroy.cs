@@ -112,5 +112,40 @@ namespace DOL.GS.Tests
             Assert.That(holiday, Is.GreaterThan(total / 3), "most holiday greetings are answered in kind");
         }
 
+        [Test]
+        public void LeeroyRollsOneRaidInTwentyAndWaitsForPartOfTheRaid()
+        {
+            Assert.That(AutonomousRaidLeeroy.Rolls(0.049), Is.True);
+            Assert.That(AutonomousRaidLeeroy.Rolls(0.05), Is.False);
+            Assert.That(AutonomousRaidLeeroy.ShouldCharge(30, 80, 90_000, 0, false), Is.True, "a quarter there, a minute in");
+            Assert.That(AutonomousRaidLeeroy.ShouldCharge(30, 80, 30_000, 0, false), Is.False, "too soon");
+            Assert.That(AutonomousRaidLeeroy.ShouldCharge(10, 80, 90_000, 0, false), Is.False, "too few to follow him");
+            Assert.That(AutonomousRaidLeeroy.ShouldCharge(80, 80, 90_000, 0, false), Is.False, "everyone is there: that's the pull");
+            Assert.That(AutonomousRaidLeeroy.ShouldCharge(30, 80, 90_000, 1, false), Is.False, "never after a wipe");
+            Assert.That(AutonomousRaidLeeroy.ShouldCharge(30, 80, 90_000, 0, true), Is.False, "never while regrouping");
+            Assert.That(AutonomousRaidLeeroy.ShouldCharge(8, 20, 90_000, 0, false), Is.True, "a small raid: eight will do");
+            Assert.That(AutonomousRaidLeeroy.ShouldChargeStaging(60, 100, 4 * 60_000), Is.True);
+            Assert.That(AutonomousRaidLeeroy.ShouldChargeStaging(40, 100, 4 * 60_000), Is.False);
+            Assert.That(AutonomousRaidLeeroy.ShouldChargeStaging(60, 100, 60_000), Is.False);
+        }
+
+        [Test]
+        public void LeeroyIsADamageDealerAndUsuallyADaredevil()
+        {
+            Assert.That(AutonomousRaidLeeroy.CanBeLeeroy(eCharacterClass.Armsman), Is.True);
+            Assert.That(AutonomousRaidLeeroy.CanBeLeeroy(eCharacterClass.Berserker), Is.True);
+            Assert.That(AutonomousRaidLeeroy.CanBeLeeroy(eCharacterClass.Wizard), Is.True);
+            Assert.That(AutonomousRaidLeeroy.CanBeLeeroy(eCharacterClass.Cleric), Is.False);
+            Assert.That(AutonomousRaidLeeroy.CanBeLeeroy(eCharacterClass.Minstrel), Is.False);
+            Assert.That(AutonomousRaidLeeroy.CanBeLeeroy(eCharacterClass.Healer), Is.False);
+            Assert.That(AutonomousRaidLeeroy.Eagerness(BotPersonalityType.Daredevil),
+                Is.GreaterThan(AutonomousRaidLeeroy.Eagerness(BotPersonalityType.NoLifer)));
+            Assert.That(AutonomousRaidLeeroy.Eagerness(BotPersonalityType.NoLifer),
+                Is.GreaterThan(AutonomousRaidLeeroy.Eagerness(BotPersonalityType.Leveler)));
+            Assert.That(AutonomousRaidLeeroy.Fill("thanks a lot {leeroy}", "Brannoc", "Legion"), Is.EqualTo("thanks a lot Brannoc"));
+            Assert.That(AutonomousRaidLeeroy.Shouts.All(s => s.StartsWith("LEE", StringComparison.Ordinal)), Is.True);
+            Assert.That(AutonomousRaidLeeroy.Reactions.Concat(AutonomousRaidLeeroy.AfterWin).Concat(AutonomousRaidLeeroy.AfterWipe)
+                .All(line => line.Length <= 140), Is.True);
+        }
     }
 }

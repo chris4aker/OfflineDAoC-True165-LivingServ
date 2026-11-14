@@ -41,6 +41,9 @@ namespace DOL.GS
             public GameNPC Boss;
             public long Deadline;
             public bool Started;
+            /// <summary>Living Server's Leeroy (bot_living_leeroy, off by default): rolled for this raid, charged, and who.</summary>
+            public bool LeeroyRolled, LeeroyDone;
+            public string LeeroyName;
             public bool PreparationNoticeSent;
             public bool Forced;
             public long Created;
@@ -357,9 +360,30 @@ namespace DOL.GS
                             ? RealmRaidRecruitmentPolicy.HornAssaultReady(present, Coming(raid), raid.MinimumStagedTick, raid.StagingArrivalTick,
                                 hornDeadline, now, DragonLanded(raid))
                             : RealmRaidRecruitmentPolicy.Ready(raid.Forced, now - raid.Created, present, DragonLanded(raid));
+                        // Living Server's Leeroy at a dragon: half the raid at the staging ring, not all, and he goes; the
+                        // raid goes in after him. A raid ready before that moment still has him: he jumps its pull.
+                        GameBot leeroy = null;
+                        GameLiving[] staged = null;
+                        if (raid.LeeroyRolled && !raid.LeeroyDone && !raid.Definition.IsDungeon && DragonLanded(raid) &&
+                            (ready || AutonomousRaidLeeroy.GoesNow(AutonomousRaidLeeroy.ShouldChargeStaging(present, Math.Max(present, Coming(raid)),
+                                now - raid.Created), present)))
+                        {
+                            raid.LeeroyDone = true;
+                            staged = raid.Parties.Values.SelectMany(p => p.Members)
+                                .Where(b => IsEligible(b) && b.IsAlive && b.CurrentRegionID == raid.Definition.Region && AtStaging(raid, b))
+                                .Cast<GameLiving>().ToArray();
+                            leeroy = AutonomousRaidLeeroy.Pick(staged);
+                            if (leeroy != null)
+                            {
+                                ready = true;
+                                Log.Info($"REALM_RAID_LEEROY_START event={raid.Definition.Id} bot=\"{leeroy.Name}\" present={present}");
+                            }
+                        }
                         if (ready)
                         {
                             raid.Started = true;
+                            if (leeroy != null && raid.Boss != null && AutonomousRaidLeeroy.Charge(leeroy, raid.Boss, staged, raid.Definition.Name))
+                                raid.LeeroyName = leeroy.Name;
                             raid.BattleStartTick = now;
                             if (raid.Horn) RallyGuests165.OnRaidStarted(raid.Definition.Id);
                             raid.Deadline = raid.Forced ? long.MaxValue : now + RealmRaidRecruitmentPolicy.BattleMilliseconds;
@@ -609,6 +633,10 @@ namespace DOL.GS
                 raid.Deadline = forced ? long.MaxValue : now + RealmRaidRecruitmentPolicy.AutonomousStagingLimitMilliseconds;
                 Raids[id] = raid;
                 raid.SounderKey = sounderKey;
+                // Living Server: one raid in twenty has a raider who can't wait for the final encounter (bot_living_leeroy).
+                raid.LeeroyRolled = AutonomousRaidLeeroy.On && AutonomousRaidLeeroy.RollForRaid(Random.Shared.NextDouble());
+                if (raid.DungeonRoute != null) raid.DungeonRoute.LeeroyRolled = raid.LeeroyRolled;
+                if (raid.LeeroyRolled) Log.Info($"RAID_LEEROY_ROLLED event={id}");
                 RealmEventRecords.Begin(id, definition.Name, definition.IsNeutral ? "Neutral raid" : definition.IsDungeon ? "Epic dungeon" : "Dragon",
                     GlobalConstants.RealmToName(realm), (forced ? "Forced" : "Automatic") + " rally via " + raid.Hub.Name);
                 raid.ForcedParties.AddRange(recruits);
@@ -1539,6 +1567,10 @@ namespace DOL.GS
             if (outcome is "Boss defeated" or "Defeated")
                 AutonomousChatNews.RaidOutcome(raid.Definition.Realm, raid.Definition.Name, raid.Boss?.Name, outcome == "Boss defeated");
             RealmEventNotices.Queue(raid.Definition.Id, raid.Definition.Realm, RealmEventBanter.RaidOutcome(raid.Definition.Name, outcome));
+            // Living Server's Leeroy: a raider tells the realm how it went with him (the raiders as they were).
+            string leeroyName = raid.LeeroyName ?? raid.DungeonRoute?.LeeroyName;
+            if (leeroyName != null && outcome is "Boss defeated" or "Defeated")
+                AutonomousRaidLeeroy.AfterRaid(raid.Definition.Realm, leeroyName, raid.Boss?.Name, outcome == "Boss defeated", recipients);
         }
 
         private const string StoppedByPlayer = "Stopped by the player";

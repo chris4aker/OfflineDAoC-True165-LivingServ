@@ -8,7 +8,7 @@ using DOL.Database;
 namespace DOL.GS
 {
     /// <summary>One bounded route planner per expedition, not one full-world scan per member.</summary>
-    public sealed class RealmRaidDungeonRoute
+    public sealed partial class RealmRaidDungeonRoute
     {
         private readonly ushort _region;
         private readonly string[] _finalTypes;
@@ -822,7 +822,7 @@ namespace DOL.GS
         }
 
         private static bool IsEncounterHazard(GameNPC npc) =>
-            npc.Brain?.GetType().Name is "VortexBrain" or "WaterfallAntipassBrain";
+            npc.Brain?.GetType().Name is "VortexBrain" or "WaterfallAntipassBrain" || EpicEncounterTactics.IsHazard(npc);
         public const int ThinAttackNear = 16;
 
         /// <summary>
@@ -971,6 +971,8 @@ namespace DOL.GS
             }
             bool finalDeaths = _finalTypes.All(type => _finals.TryGetValue(type, out var boss) && !boss.IsAlive);
             if (finalDeaths) { Complete = true; Status = "Final encounter defeated"; return; }
+            // Living Server's raid tactics (bot_epic_encounter_tactics, off by default): RealmRaidDungeonRoute.Tactics.cs.
+            if (ApplyTactics(live, participants, now)) return;
             if (_target?.IsAlive == true && _target.ObjectState == GameObject.eObjectState.Active)
             {
                 // A target that reset (a wipe, a leash home, a heal on a kill) is measured from its new health: against the

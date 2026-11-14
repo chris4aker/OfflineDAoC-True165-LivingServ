@@ -1631,6 +1631,10 @@ namespace DOL.AI.Brain
             // Living Server beggars (bot_living_beggars): a few gamebots live on a corner of their capital and do nothing else.
             if (AutonomousBeggars.Think(this))
                 return;
+            // Living Server's raid tactics (bot_epic_encounter_tactics, off by default): out of a boss's blast before anything
+            // else (Xanxicar's stomp), whatever the bot is doing.
+            if (EpicEncounterTactics.ThinkBlast(BotBody))
+                return;
             bool nativeSpeedTravelStarted;
             if (CompanionFollowPolicy.ObserveAndCancelBuffs(BotBody, out nativeSpeedTravelStarted))
             {
@@ -4302,6 +4306,10 @@ namespace DOL.AI.Brain
                 return;
             // dragon-fight L1: ... and a boss outside the lair circle it takes damage in (BotBrain.RaidBoss)
             if (Body.TargetObject is GameNPC lairBoss && TryHoldForBossOutsideLair(lairBoss))
+                return;
+            // Living Server's raid tactics (bot_epic_encounter_tactics, off by default): an epic encounter's required adds
+            // first, fight it at home, or the boss it dies with. May set a new target and fight on, or use this turn to stand off.
+            if (Body.TargetObject is GameNPC tacticTarget && EpicEncounterTactics.TryHandle(BotBody, tacticTarget))
                 return;
             // epic-bosses L2: out of a boss's area spell while it is cast (BotBrain.RaidBoss)
             if (Body.TargetObject is GameLiving areaBoss && TryStepOutOfBossArea(areaBoss))

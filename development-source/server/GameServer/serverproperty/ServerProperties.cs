@@ -2426,6 +2426,18 @@ namespace DOL.GS.ServerProperties
 		public static bool BOT_ERA_NAMES;
 
 		/// <summary>
+		/// Living Server's raid tactics for epic encounters (EpicEncounterTactics), off by default in True 1.65.
+		/// </summary>
+		[ServerProperty("bots", "bot_epic_encounter_tactics", "Living Server, off by default in True 1.65: gamebot raids play Living Server's tactics for eight epic encounters (Scurceol Hyrde's orbs, Orshom's Fire, Aidon's illusions, Black Lady and the Ancient Black Oak, Nosdoden's waves, Xanxicar's stomp) on top of True 1.65's own boss rules. Off: True 1.65's boss rules only.", false)]
+		public static bool BOT_EPIC_ENCOUNTER_TACTICS;
+
+		/// <summary>
+		/// Living Server's restored original boss mechanics (EpicEncounterMechanics), by switch name.
+		/// </summary>
+		[ServerProperty("world", "epic_original_mechanics", "Living Server, empty (off) by default in True 1.65: original OpenDAoC boss mechanics to turn back on, by switch name, comma separated (AllowHorsemenTetherHeal, AllowFunusWeaponPuzzle, AllowSacristanPatrol, AllowSoulReckonerFullShield, AllowSoulReckonerSmallRoom, AllowAroonDamageOrder, AllowGalladoriaBridgeSpot, AllowFullFirePatches, AllowEarthmenderClassPuzzle, AllowEarthmendersPassive, AllowEarthmenderQuickReset, AllowEarthmenderMutualHeal, AllowBeathaHealsXaga, AllowFairyFlight, AllowGovannonFullHealth, AllowKvasirColdHeal, AllowTuscarTwinHeal), or all. Each makes its boss harder than True 1.65 has it. Read at server start.", "")]
+		public static string EPIC_ORIGINAL_MECHANICS;
+
+		/// <summary>
 		/// Autonomous gamebots speak lines from the bot-voices corpus in their own writing style.
 		/// </summary>
 		[ServerProperty("bots", "bot_voices_enabled", "Autonomous gamebots say pre-written, period lines (docs/bot-voices/DESIGN.md) chosen by personality, level, realm, class and situation, each in its own writing style, without repeating a line in a realm within 6 hours. On by default since Beta 1.1 (the talking update). False keeps the old lines.", true)]

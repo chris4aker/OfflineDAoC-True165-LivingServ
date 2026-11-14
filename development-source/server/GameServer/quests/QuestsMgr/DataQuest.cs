@@ -243,6 +243,13 @@ namespace DOL.GS.Quests
 		protected List<byte> m_allowedClasses = new List<byte>();
 		string m_classType = string.Empty;
 		string m_additionalData = string.Empty;
+		// Living Server (owner 2026-10-31): the monster whose kill a kill step last counted, and when, so one kill counts
+		// once however many notifications carry it (QuestKillCredit.IsRepeat).
+		GameLiving m_lastKillCounted;
+		long m_lastKillCountedAt;
+
+		/// <summary>The clock the once-per-kill rule reads: the game loop's. A test double can move it.</summary>
+		protected virtual long KillClock => GameLoop.GameLoopTime;
 
 		#region Construction
 
@@ -1913,8 +1920,22 @@ namespace DOL.GS.Quests
 				{
 					EnemyKilledEventArgs a = args as EnemyKilledEventArgs;
 					GamePlayer player = sender as GamePlayer;
-					GameLiving killed = a.Target;
+					GameLiving killed = a?.Target;
 
+					// Living Server (owner 2026-10-31): a kill counts once. GamePlayer.EnemyKilled repeats the kill to this player's
+					// quests for each groupmate in range who didn't attack (that groupmate as the sender), and one kill advanced
+					// consecutive kill steps. The repeat is known by the monster, not by the sender, so the named mobs' forced
+					// credit, sent to every player in sight with the killer as the sender, still counts (QuestKillCredit.IsRepeat).
+					// A quest nobody holds counts no kill.
+					if (m_questPlayer == null || killed == null)
+						return;
+
+					long now = KillClock;
+					if (QuestKillCredit.IsRepeat(killed, m_lastKillCounted, m_lastKillCountedAt, now))
+						return;
+
+					m_lastKillCounted = killed;
+					m_lastKillCountedAt = now;
 					OnEnemyKilled(player, killed);
 
 					return;
@@ -1978,6 +1999,8 @@ namespace DOL.GS.Quests
 				{
 					if ((quest.ID + DATAQUEST_CLIENTOFFSET) == qargs.QuestID)
 					{
+						if (RefuseWhenJournalFull(player))
+							return;
 						DbCharacterXDataQuest charQuest = GetCharacterQuest(player, quest.ID, true);
 						DataQuest dq = new DataQuest(player, giver, quest, charQuest);
 						dq.Step = 1;
@@ -2105,6 +2128,8 @@ namespace DOL.GS.Quests
 
 				if (StartType == eStartType.AutoStart)
 				{
+					if (RefuseWhenJournalFull(player))
+						return;
 					DbCharacterXDataQuest charQuest = GetCharacterQuest(player, ID, true);
 					DataQuest dq = new DataQuest(player, obj, DBDataQuest, charQuest);
 					dq.Step = 1;
@@ -2131,6 +2156,8 @@ namespace DOL.GS.Quests
 
                 if (StartType == eStartType.SearchStart)
                 {
+                    if (RefuseWhenJournalFull(player)) // before the start item or any record exists
+                        return;
                     if (m_searchStartItemTemplate != string.Empty)
                     {
                         lock (player.Inventory.Lock)
@@ -2389,10 +2416,14 @@ namespace DOL.GS.Quests
 			{
 				TryTurnTo(living, player);
 
+				if (RefuseWhenJournalFull(player))
+					return;
+
 				DbCharacterXDataQuest charQuest = GetCharacterQuest(player, ID, true);
 				DataQuest dq = new DataQuest(player, living, DBDataQuest, charQuest);
 				dq.Step = 1;
-				player.AddQuest(dq);
+				if (!player.AddQuest(dq))
+					return;
 				if (m_sourceTexts.Count > 0)
 				{
 					SendMessage(player, m_sourceTexts[0], 0, eChatType.CT_System, eChatLoc.CL_PopupWindow);
@@ -2890,6 +2921,19 @@ namespace DOL.GS.Quests
 		/// </summary>
 		/// <param name="player"></param>
 		/// <param name="enemy"></param>
+		/// <summary>
+		/// Tells the player and returns true when the journal is full; checked before any record, item or text exists, so a
+		/// refused quest isn't half-started (Living Server, from HearthDAoC).
+		/// </summary>
+		private static bool RefuseWhenJournalFull(GamePlayer player)
+		{
+			if (!QuestJournal.IsFull(player.QuestList.Count))
+				return false;
+
+			player.Out.SendMessage(QuestJournal.FullText, eChatType.CT_System, eChatLoc.CL_SystemWindow);
+			return true;
+		}
+
 		protected virtual void OnEnemyKilled(GamePlayer player, GameLiving living)
 		{
 			if (QuestNames.Same(TargetName, living.Name) && (TargetRegion == living.CurrentRegionID || TargetRegion == 0))

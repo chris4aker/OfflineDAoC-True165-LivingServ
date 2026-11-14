@@ -49,11 +49,18 @@ public sealed record SocialExpansionSettings
     public bool LivingStorylines { get; init; } = true;
     public bool LivingCharacters { get; init; } = true;
     public bool LivingRumours { get; init; } = true;
-    /// <summary>Holiday chatter and Leeroy in raids (Beta 1.1). On by default.</summary>
+    /// <summary>Holiday chatter (Beta 1.1). On by default.</summary>
     public bool LivingHolidays { get; init; } = true;
-    public bool LivingLeeroy { get; init; } = true;
+    /// <summary>Leeroy in raids. True 1.65 edition: off by default (it changes how raids go).</summary>
+    public bool LivingLeeroy { get; init; }
     public string PlayerXpByLevel { get; init; } = "";
     public string BotXpByLevel { get; init; } = "";
+    /// <summary>Quest XP follows the player's XP-by-level range (quest_xp_by_level). True 1.65 edition: off by default.</summary>
+    public bool QuestXpByLevel { get; init; }
+    /// <summary>Gamebots hit by a player react like a player (bot_incoming_fire_reaction). True 1.65 edition: off by default.</summary>
+    public bool IncomingFireReaction { get; init; }
+    /// <summary>New gamebots get names in the style of 2003's servers (bot_era_names). True 1.65 edition: off by default.</summary>
+    public bool EraNames { get; init; }
     /// <summary>
     /// Power regeneration multiplier for players and bots alike (Living Server 1.1.2: 1.5; 1 is the classic pre-1.87 rate,
     /// which patch 1.87 doubled).
@@ -70,15 +77,14 @@ public sealed record SocialExpansionSettings
     /// <summary>
     /// The settings of Living Server 1.1.4 that this True 1.65 edition does not carry yet (or carries switched off and not
     /// joined to True 1.65's own systems): the tab does not show them and never writes them, so the server keeps its own
-    /// default. Bot guilds, XP by level range, the raid surprise, and bot schedules, breaks and body language (True 1.65's
-    /// population system decides who is online).
+    /// default. Bot guilds, and bot schedules, breaks and body language (True 1.65's population system decides who is
+    /// online).
     /// </summary>
     public static readonly IReadOnlySet<string> NotInThisEdition = new HashSet<string>(StringComparer.Ordinal)
     {
         "bot_guilds_enabled", "bot_guild_share", "bot_guild_min_level", "bot_guild_social", "bot_guild_recruit_player",
         "bot_guild_claims_keeps", "bot_guild_economy", "bot_guild_alliances", "bot_player_guild_economy",
-        "xp_rate_by_level", "bot_xp_rate_by_level", "bot_living_leeroy", "bot_schedule_mode", "bot_living_breaks",
-        "bot_living_body_language",
+        "bot_schedule_mode", "bot_living_breaks", "bot_living_body_language",
     };
 
     /// <summary>The server's defaults: since Beta 1.1 (the talking update) bot voices, bot memory and grats on, the rest off.</summary>
@@ -130,9 +136,12 @@ public sealed record SocialExpansionSettings
         ("bot_living_characters", "bots", "Server life: now and then a gold spammer floods /faction until it is banned, and a few bots roleplay in thee-and-thou speech while the realm mocks them."),
         ("bot_living_rumours", "bots", "Server life: bots pass on rumours that are true: a rare named monster that just spawned, or an enemy keep whose guards are down. Go and see."),
         ("bot_living_holidays", "bots", "Server life: around Halloween, Thanksgiving, Christmas, New Year and other holidays on your PC's calendar, bots talk about them like 2003 players did and answer your holiday wishes."),
-        ("bot_living_leeroy", "bots", "Server life: one end-game raid in twenty has a bot who charges the final boss before the raid is ready, yelling his name, and the raid has to follow him in."),
-        ("xp_rate_by_level", "rates", "Optional XP rate by level range for real player characters (set in the launcher's Living Server tab)."),
-        ("bot_xp_rate_by_level", "rates", "Optional XP rate by level range for autonomous gamebots (set in the launcher's Living Server tab)."),
+        ("bot_living_leeroy", "bots", "Server life: one end-game raid in twenty has a bot who charges the final boss (or the landed dragon) before the raid is ready, yelling his name, and the raid has to follow him in. Off by default in the True 1.65 edition: it changes how raids go."),
+        ("bot_incoming_fire_reaction", "bots", "Autonomous gamebots hit by a player, bot or pet react like a player: a 0.3-2.5 s reaction delay (healers heal meanwhile; shorter for tanks and bold personalities), an area spell from a distance doesn't make its caster the bot's target, and healers cure a dotted group with the group cure. Companions and bots in your group are not affected. Off by default in the True 1.65 edition (it changes how gamebots fight): the immediate reaction."),
+        ("bot_era_names", "bots", "Living Server, off by default in True 1.65: new gamebots get names in the style of 2003's servers (three in four made-up, compound, joke or first names, some xX and number names; the rest lore names) instead of True 1.65's race-styled names. Bots that already have a name keep it."),
+        ("xp_rate_by_level", "rates", "Living Server, off by default: an XP rate by level range for real player characters, for example 1-19:3;20-34:5;35-50:12. Inside a listed range its rate replaces xp_rate (the launcher's Player XP rate); other levels keep xp_rate. In RvR zones the RvR rate still multiplies it. Empty (the default) or an invalid value keeps the flat xp_rate."),
+        ("bot_xp_rate_by_level", "rates", "Living Server, off by default: an XP rate by level range for autonomous gamebots, for example 1-19:1.5;20-34:2.5;35-50:6. Inside a listed range its rate replaces bot_xp_rate (the launcher's gamebot XP rate); other levels keep bot_xp_rate. In RvR zones the RvR rate still multiplies it. Empty (the default) or an invalid value keeps the flat bot_xp_rate. Hired companions follow xp_rate_by_level, as they follow the Player XP rate."),
+        ("quest_xp_by_level", "rates", "Living Server, off by default in True 1.65: quest experience follows xp_rate_by_level. When true and one of its ranges covers the player's level, the XP of data quests, reward quests and the battleground quests is multiplied by that level's rate, and one quest payment never pays more than one level. False: quest XP exactly as True 1.65 pays it."),
         ("mana_regen_amount_modifier", "rates", "Power regeneration multiplier for real players and gamebots alike. 1 is the classic rate before patch 1.87, which doubled it; 1.5 (the Living Server default) is a middle ground. Set in the launcher's Living Server tab."),
         ("mana_regen_amount_halved_below_50_percent", "rates", "Halve power regeneration below 50% power for list casters (the classic rule). Applies to real players and gamebots alike. Off by default in the Living Server; set in the launcher's Living Server tab."),
     ];
@@ -173,8 +182,11 @@ public sealed record SocialExpansionSettings
         ["bot_living_rumours"] = Bool(LivingRumours),
         ["bot_living_holidays"] = Bool(LivingHolidays),
         ["bot_living_leeroy"] = Bool(LivingLeeroy),
+        ["bot_incoming_fire_reaction"] = Bool(IncomingFireReaction),
+        ["bot_era_names"] = Bool(EraNames),
         ["xp_rate_by_level"] = PlayerXpByLevel.Trim(),
         ["bot_xp_rate_by_level"] = BotXpByLevel.Trim(),
+        ["quest_xp_by_level"] = Bool(QuestXpByLevel),
         ["mana_regen_amount_modifier"] = ManaRegenModifier.ToString("0.##", CultureInfo.InvariantCulture),
         ["mana_regen_amount_halved_below_50_percent"] = Bool(ManaHalvedBelowHalf),
     };
@@ -311,6 +323,9 @@ public sealed record SocialExpansionSettings
             // Kept as written: an invalid range setting shows its own error in the tab (the server ignores it).
             PlayerXpByLevel = stored.TryGetValue("xp_rate_by_level", out string? player) ? player?.Trim() ?? "" : "",
             BotXpByLevel = stored.TryGetValue("bot_xp_rate_by_level", out string? bots) ? bots?.Trim() ?? "" : "",
+            QuestXpByLevel = ReadBool("quest_xp_by_level", d.QuestXpByLevel),
+            IncomingFireReaction = ReadBool("bot_incoming_fire_reaction", d.IncomingFireReaction),
+            EraNames = ReadBool("bot_era_names", d.EraNames),
             ManaRegenModifier = manaRate,
             ManaHalvedBelowHalf = ReadBool("mana_regen_amount_halved_below_50_percent", d.ManaHalvedBelowHalf),
         };
@@ -335,11 +350,12 @@ public sealed record SocialExpansionSettings
         LivingMemory = false, LivingGrats = false, LivingFirsts = false, LivingDeath = false, LivingAlarms = false,
         LivingNemesis = false, ScheduleMode = "off", LivingBreaks = false, LivingBodyLanguage = false, LivingBeggars = false,
         LivingDeeds = false, LivingStorylines = false, LivingCharacters = false, LivingRumours = false,
-        LivingHolidays = false, LivingLeeroy = false,
+        LivingHolidays = false, LivingLeeroy = false, QuestXpByLevel = false, IncomingFireReaction = false, EraNames = false,
     };
 
     /// <summary>True when every feature and both XP ranges are off.</summary>
-    public bool IsAllOff => !BotGuilds && !Personalities && !Voices && !AnyLiving && PlayerXpByLevel.Trim() == "" && BotXpByLevel.Trim() == "";
+    public bool IsAllOff => !BotGuilds && !Personalities && !Voices && !AnyLiving && PlayerXpByLevel.Trim() == "" && BotXpByLevel.Trim() == "" &&
+                            !QuestXpByLevel && !IncomingFireReaction && !EraNames;
 
     /// <summary>Why these settings can't be saved, or null when they can.</summary>
     public string? Validate()

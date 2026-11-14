@@ -51,13 +51,16 @@ public static class ForkBuildInfo
             ("deeds", Properties.BOT_LIVING_DEEDS), ("storylines", Properties.BOT_LIVING_STORYLINES),
             ("characters", Properties.BOT_LIVING_CHARACTERS), ("rumours", Properties.BOT_LIVING_RUMOURS),
             ("holidays", Properties.BOT_LIVING_HOLIDAYS), ("beggars", Properties.BOT_LIVING_BEGGARS),
-            ("bonds", Properties.BOT_GROUP_BONDS), ("breaks", Properties.BOT_LIVING_BREAKS), ("body", Properties.BOT_LIVING_BODY_LANGUAGE),
+            ("bonds", Properties.BOT_GROUP_BONDS), ("breaks", Properties.BOT_LIVING_BREAKS), ("body", Properties.BOT_LIVING_BODY_LANGUAGE), ("leeroy", Properties.BOT_LIVING_LEEROY),
         }.Where(part => part.Item2).Select(part => part.Item1));
         return $"FORK_BUILD name={BuildName} edition={Edition} base={BaseRelease} commit={Commit}" +
                $" bot_personalities={On(Properties.BOT_PERSONALITIES_ENABLED)} bot_voices={On(Properties.BOT_VOICES_ENABLED)}" +
                (Properties.BOT_VOICES_ENABLED ? $" bot_debates={On(Properties.BOT_VOICES_DEBATES)} bot_tells={On(Properties.BOT_VOICES_TELLS)}" : string.Empty) +
                $" bot_guilds={On(Properties.BOT_GUILDS_ENABLED)}" +
-               $" living={(livingParts.Length == 0 ? "off" : livingParts)} bot_schedule={AutonomousBotSchedule.CurrentMode.ToString().ToLowerInvariant()}";
+               $" living={(livingParts.Length == 0 ? "off" : livingParts)} bot_schedule={AutonomousBotSchedule.CurrentMode.ToString().ToLowerInvariant()}" +
+               $" incoming_fire={On(Properties.BOT_INCOMING_FIRE_REACTION)} era_names={On(Properties.BOT_ERA_NAMES)}" +
+               $" xp_by_level={(string.IsNullOrWhiteSpace(Properties.XP_RATE_BY_LEVEL) && string.IsNullOrWhiteSpace(Properties.BOT_XP_RATE_BY_LEVEL) ? "off" : "on")}" +
+               $" quest_xp_by_level={On(Properties.QUEST_XP_BY_LEVEL)}";
     }
 
     [GameServerStartedEvent]

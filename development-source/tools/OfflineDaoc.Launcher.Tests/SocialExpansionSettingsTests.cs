@@ -60,7 +60,7 @@ public class SocialExpansionSettingsTests
         LivingMemory = true, LivingGrats = true, LivingFirsts = true, LivingDeath = true, LivingAlarms = true,
         LivingNemesis = true, ScheduleMode = "clock", LivingBreaks = true, LivingBodyLanguage = true, LivingBeggars = true,
         LivingDeeds = true, LivingStorylines = true, LivingCharacters = true, LivingRumours = true,
-        LivingHolidays = true, LivingLeeroy = true,
+        LivingHolidays = true, LivingLeeroy = true, QuestXpByLevel = true, IncomingFireReaction = true, EraNames = true,
     };
 
     [Test] public void NoRowsMeansTheServerDefaults()
@@ -76,6 +76,9 @@ public class SocialExpansionSettingsTests
         Assert.That(SocialExpansionSettings.Defaults.BotGuilds || SocialExpansionSettings.Defaults.LivingDeath ||
                     SocialExpansionSettings.Defaults.LivingBreaks, Is.False);
         Assert.That(SocialExpansionSettings.Defaults.PlayerXpByLevel + SocialExpansionSettings.Defaults.BotXpByLevel, Is.Empty);
+        // True 1.65 edition: what changes how the game plays is off until the player turns it on.
+        var d = SocialExpansionSettings.Defaults;
+        Assert.That((d.LivingLeeroy, d.QuestXpByLevel, d.IncomingFireReaction, d.EraNames), Is.EqualTo((false, false, false, false)));
     }
 
     [Test] public void RecommendedTurnsThisEditionsPartsOnAndKeepsThe165Rules()
@@ -91,6 +94,7 @@ public class SocialExpansionSettingsTests
         Assert.That(parts.Where(key => stored[key] != "True"), Is.Empty);
         Assert.That((r.BotGuilds, r.ScheduleMode, r.LivingBreaks, r.LivingBodyLanguage), Is.EqualTo((false, "off", false, false)));
         Assert.That(r.PlayerXpByLevel + r.BotXpByLevel, Is.Empty);
+        Assert.That((r.QuestXpByLevel, r.IncomingFireReaction, r.EraNames, r.LivingLeeroy), Is.EqualTo((false, false, false, false)), "how the game plays stays True 1.65's");
         Assert.That((r.ManaRegenModifier, r.ManaHalvedBelowHalf), Is.EqualTo((1.0, true)), "the 1.65 rate");
         Assert.That(r.Validate(), Is.Null);
         r.Save(_database, null, () => true);
@@ -104,11 +108,14 @@ public class SocialExpansionSettingsTests
     {
         AllOn.Save(_database, null, () => _stopped);
         var rows = Rows();
-        // True 1.65 edition: guilds, XP by level, schedules, breaks and body language are not written at all.
+        // True 1.65 edition: guilds, schedules, breaks and body language are not written at all.
         foreach (string hidden in SocialExpansionSettings.NotInThisEdition)
             Assert.That(rows.ContainsKey(hidden), Is.False, hidden + " is not written in this edition");
         Assert.That(rows["bot_personalities_enabled"], Is.EqualTo("True"));
         Assert.That(rows["xp_rate"], Is.EqualTo("1"), "the flat rate is not touched");
+        Assert.That(rows["xp_rate_by_level"], Is.EqualTo(SocialExpansionSettings.SuggestedPlayerXp));
+        Assert.That(rows["quest_xp_by_level"] + rows["bot_incoming_fire_reaction"] + rows["bot_era_names"] + rows["bot_living_leeroy"],
+            Is.EqualTo("TrueTrueTrueTrue"));
         Assert.That(rows["bot_living_memory"], Is.EqualTo("True"));
         Assert.That(rows["bot_living_beggars"], Is.EqualTo("True"));
         Assert.That(rows["bot_living_deeds"] + rows["bot_living_storylines"] + rows["bot_living_characters"] + rows["bot_living_rumours"],
@@ -118,8 +125,7 @@ public class SocialExpansionSettingsTests
         Assert.That(SocialExpansionSettings.Load(_database, problems), Is.EqualTo(AllOn with
         {
             BotGuilds = d.BotGuilds, GuildSharePercent = d.GuildSharePercent, GuildMinLevel = d.GuildMinLevel, GuildAlliances = d.GuildAlliances,
-            PlayerXpByLevel = "", BotXpByLevel = "", ScheduleMode = "off", LivingBreaks = false, LivingBodyLanguage = false,
-            LivingLeeroy = d.LivingLeeroy,
+            ScheduleMode = "off", LivingBreaks = false, LivingBodyLanguage = false,
         }), "what this edition doesn't carry reads back as the server's default");
         Assert.That(problems, Is.Empty);
     }

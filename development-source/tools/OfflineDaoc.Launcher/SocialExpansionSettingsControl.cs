@@ -49,6 +49,9 @@ internal sealed class SocialExpansionSettingsControl : UserControl
     private readonly CheckBox _rumours = Switch("True rumours");
     private readonly CheckBox _holidays = Switch("Holiday chatter");
     private readonly CheckBox _leeroy = Switch("Leeroy in raids");
+    private readonly CheckBox _incomingFire = Switch("Gamebots react like players");
+    private readonly CheckBox _eraNames = Switch("2003-style names");
+    private readonly CheckBox _questXp = Switch("Quests follow your range");
     private readonly NumericUpDown _manaRate = Rate("Power regeneration rate");
     private readonly CheckBox _manaHalved = Switch("Half below 50% power");
     private readonly XpRow _playerXp = new("YOUR CHARACTERS", SocialExpansionSettings.SuggestedPlayerXp, "3× · 5× · 12×");
@@ -110,8 +113,8 @@ internal sealed class SocialExpansionSettingsControl : UserControl
         Dependent(Caption("HOW MUCH THEY TALK"), Add(voices, null, WithUnit(_chatRate, "×"),
             "2 (the default) sounds like a busy server; 1 is calmer, 3 very busy; 0 only answers. Chat still follows the hour and the bots online. Needs bot voices."), v => v.Voices);
 
-        // True 1.65 edition: no bot schedule, breaks, body language or raid surprise rows (SocialExpansionSettings.NotInThisEdition).
-        var living = Card("SERVER LIFE", DaocTheme.Gold, 12);
+        // True 1.65 edition: no bot schedule, breaks or body language rows (SocialExpansionSettings.NotInThisEdition).
+        var living = Card("SERVER LIFE", DaocTheme.Gold, 13);
         Add(living, _memory, null, "Bots of your realm remember grouping with you, your rezzes and rude words: they greet and thank you by name.");
         Add(living, _grats, null, "Dings get grats from the group and bots nearby; a new level 50 gets cheers in /faction.");
         Add(living, _firsts, null, "The first to level 50, to 50 in each class and to each realm rank is announced and goes in the Herald.");
@@ -124,6 +127,12 @@ internal sealed class SocialExpansionSettingsControl : UserControl
         Add(living, _characters, null, "Gold spammers flood /faction until they're banned; a few bots roleplay in thee and thou and get mocked.");
         Add(living, _rumours, null, "Bots pass on true rumours: a rare named that just spawned, an enemy keep with its guards down.");
         Add(living, _holidays, null, "Around Halloween, Christmas, New Year and other holidays on your PC's calendar, bots talk about them and wish you well.");
+        Add(living, _leeroy, null, "One end-game raid in twenty has a bot who charges the final boss early, yelling his name; the raid has to follow him in.");
+
+        // True 1.65 edition: Living Server's changes to how gamebots play, each off until you turn it on.
+        var play = Card("HOW GAMEBOTS PLAY", DaocTheme.Gold, 2);
+        Add(play, _incomingFire, null, "Hit by you or another player, a gamebot takes 0.3–2.5 s to answer, as a person does. Off: True 1.65's instant reaction.");
+        Add(play, _eraNames, null, "New gamebots get names like 2003's servers had: made-up, joke and first names, some xX and 420s. Existing names stay.");
 
         var power = Card("POWER REGENERATION", DaocTheme.Gold, 3);
         Captioned(Caption("REGENERATION RATE", part: false), Add(power, null, WithUnit(_manaRate, "×"),
@@ -137,15 +146,17 @@ internal sealed class SocialExpansionSettingsControl : UserControl
         power.Grid.Controls.Add(powerNote, 0, power.Grid.RowCount - 1);
         power.Grid.SetColumnSpan(powerNote, 3);
 
-        var xp = Card("XP BY LEVEL RANGE", DaocTheme.Gold, 5);
-        xp = xp with { Height = TitleRow + 2 * (XpRow.Height + XpRow.ErrorHeight) + Row + CardPadding };
+        var xp = Card("XP BY LEVEL RANGE", DaocTheme.Gold, 6);
+        xp = xp with { Height = TitleRow + 2 * (XpRow.Height + XpRow.ErrorHeight) + 2 * Row + CardPadding };
         _playerXp.AddTo(xp.Grid);
         _botXp.AddTo(xp.Grid);
+        Dependent(_questXp, Add(xp, _questXp, null, "Quest XP is multiplied by your range's rate too, at most one level per quest. Needs your XP by level."),
+            v => v.PlayerXpByLevel.Trim() != "");
         var note = new Label
         {
             Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = StatusFont, ForeColor = DaocTheme.Muted,
             Text = "Suggested rates are for levels 1–19 · 20–34 · 35–50: they keep levels 1–34 worth playing and shorten the 35–50 grind. " +
-                   "Inside a range its rate replaces the flat XP on the Options tab; other levels keep it. RvR zones still use the RvR XP rate.",
+                   "Inside a range its rate replaces the flat XP on the Options tab; other levels keep it. RvR zones still multiply by the RvR XP rate. Empty: True 1.65's rates.",
         };
         xp.Grid.Controls.Add(note, 0, xp.Grid.RowCount - 1);
         xp.Grid.SetColumnSpan(note, 3);
@@ -167,10 +178,12 @@ internal sealed class SocialExpansionSettingsControl : UserControl
         (Control Control, int Height)[] parts =
         [
             (Intro(), 40),
-            // True 1.65 edition: the bot guild and XP-by-level cards are built but not shown (NotInThisEdition).
+            // True 1.65 edition: the bot guild card is built but not shown (NotInThisEdition).
             (voices.Panel, voices.Height),
             (living.Panel, living.Height),
+            (play.Panel, play.Height),
             (power.Panel, power.Height),
+            (xp.Panel, xp.Height),
         ];
         page.RowCount = parts.Length;
         int total = 0;
@@ -190,7 +203,8 @@ internal sealed class SocialExpansionSettingsControl : UserControl
 
         foreach (var box in new[] { _guilds, _guildSocial, _guildRecruit, _guildClaims, _guildEconomy, _guildAlliances, _playerGuildEconomy, _manaHalved,
                      _personalities, _voices, _debates,
-                     _memory, _grats, _firsts, _death, _alarms, _nemesis, _breaks, _body, _beggars, _deeds, _storylines, _characters, _rumours, _holidays, _leeroy })
+                     _memory, _grats, _firsts, _death, _alarms, _nemesis, _breaks, _body, _beggars, _deeds, _storylines, _characters, _rumours, _holidays, _leeroy,
+                     _incomingFire, _eraNames, _questXp })
             box.CheckedChanged += (_, _) => Edited();
         _schedule.SelectedIndexChanged += (_, _) => Edited();
         _share.ValueChanged += (_, _) => Edited();
@@ -265,6 +279,9 @@ internal sealed class SocialExpansionSettingsControl : UserControl
         LivingLeeroy = _leeroy.Checked,
         PlayerXpByLevel = _playerXp.Value,
         BotXpByLevel = _botXp.Value,
+        QuestXpByLevel = _questXp.Checked,
+        IncomingFireReaction = _incomingFire.Checked,
+        EraNames = _eraNames.Checked,
         ManaRegenModifier = (double)_manaRate.Value,
         ManaHalvedBelowHalf = _manaHalved.Checked,
     };
@@ -306,6 +323,9 @@ internal sealed class SocialExpansionSettingsControl : UserControl
         _leeroy.Checked = settings.LivingLeeroy;
         _playerXp.Value = settings.PlayerXpByLevel;
         _botXp.Value = settings.BotXpByLevel;
+        _questXp.Checked = settings.QuestXpByLevel;
+        _incomingFire.Checked = settings.IncomingFireReaction;
+        _eraNames.Checked = settings.EraNames;
         _loading = false;
     }
 
@@ -421,18 +441,14 @@ internal sealed class SocialExpansionSettingsControl : UserControl
         int living = new[] { s.LivingMemory, s.LivingGrats, s.LivingFirsts, s.LivingDeath, s.LivingAlarms, s.LivingNemesis,
             s.ScheduleMode != "off", s.LivingBreaks, s.LivingBodyLanguage, s.LivingBeggars,
             s.LivingDeeds, s.LivingStorylines, s.LivingCharacters, s.LivingRumours, s.LivingHolidays, s.LivingLeeroy }.Count(x => x);
-        if (living > 0) on.Add($"Server life ({living} of 16 parts)");
-        if (s.PlayerXpByLevel != "" || s.BotXpByLevel != "") on.Add("XP by level");
+        if (living > 0) on.Add($"Server life ({living} of 13 parts)");
+        if (s.IncomingFireReaction) on.Add("gamebots react like players");
+        if (s.EraNames) on.Add("2003-style names");
+        if (s.PlayerXpByLevel != "" || s.BotXpByLevel != "") on.Add(s.QuestXpByLevel ? "XP by level (quests too)" : "XP by level");
         if (on.Count == 0)
-            return "Settings are loaded from the saved server settings. Everything is off: the game plays like the normal release.";
-        // The schedule decides how many bots are online at all, so the status line always names it (1.1.3).
-        string schedule = s.ScheduleMode switch
-        {
-            "clock" => " Bot schedule: real clock.",
-            "session" => " Bot schedule: sessions.",
-            _ => " Bot schedule off: every bot online all day and night.",
-        };
-        return "Saved and on at the next server startup: " + string.Join(", ", on) + "." + schedule;
+            return "Settings are loaded from the saved server settings. Everything is off: the game plays exactly like True 1.65.";
+        // True 1.65 edition: no bot schedule here; True 1.65's population system decides who is online.
+        return "Saved and on at the next server startup: " + string.Join(", ", on) + ".";
     }
 
     // ---- Layout, matching the Options tab -------------------------------------------------------------

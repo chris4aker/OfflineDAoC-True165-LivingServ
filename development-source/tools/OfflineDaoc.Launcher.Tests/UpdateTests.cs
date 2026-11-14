@@ -344,9 +344,9 @@ public class UpdatePackageTests
         PackageContents contents = PackageCheck.Inspect(zip, Build);
         Assert.That(contents.TopFolder, Is.EqualTo("LivingServer-1.1.2-beta"));
         Assert.That(contents.BuildName, Is.EqualTo("1.1.2-beta"));
-        Assert.That(contents.BaseRelease, Is.EqualTo("0.37"));
+        Assert.That(contents.BaseRelease, Is.EqualTo("0.7"));
         string folder = PackageCheck.Extract(zip, contents, Path.Combine(_dir, "out"));
-        Assert.That(File.ReadAllText(Path.Combine(folder, "GameServer.dll")), Is.EqualTo("a server build"));
+        Assert.That(File.ReadAllText(Path.Combine(folder, "server", "GameServer.dll")), Is.EqualTo("a server build"));
         Assert.That(File.Exists(Path.Combine(folder, "launcher", "OfflineDAoC.dll")), Is.True);
     }
 
@@ -369,7 +369,7 @@ public class UpdatePackageTests
     [TestCase("INSTALL.cmd")]
     [TestCase("ROLLBACK.cmd")]
     [TestCase("install-server-build.ps1")]
-    [TestCase("GameServer.dll")]
+    [TestCase("server/GameServer.dll")]
     public void AMissingFileIsRefused(string missing)
     {
         string zip = Write(UpdateFixtures.Package("1.1.2-beta", files => files.Remove(missing)));
@@ -379,7 +379,7 @@ public class UpdatePackageTests
     [Test]
     public void AServerThatIsntTheOneBuildInfoNamesIsRefused()
     {
-        string zip = Write(UpdateFixtures.Package("1.1.2-beta", files => files["GameServer.dll"] = "another server"u8.ToArray()));
+        string zip = Write(UpdateFixtures.Package("1.1.2-beta", files => files["server/GameServer.dll"] = "another server"u8.ToArray()));
         Assert.That(() => PackageCheck.Inspect(zip, Build), Throws.TypeOf<PackageRefusedException>().With.Message.Contains("GameServer.dll doesn't match"));
     }
 

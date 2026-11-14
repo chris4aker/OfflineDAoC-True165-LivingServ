@@ -79,7 +79,7 @@ try {
 
     # Installed means: the server and launcher in the game folder are now this package's files.
     $ok = (Test-Path -LiteralPath (Join-Path $GameFolder 'runtime\server\GameServer.dll')) -and
-          (Sha (Join-Path $GameFolder 'runtime\server\GameServer.dll')) -eq $info['GameServer.dll'].ToLowerInvariant()
+          (Sha (Join-Path $GameFolder 'runtime\server\GameServer.dll')) -eq $info['server/GameServer.dll'].ToLowerInvariant()
     if ($ok -and $info['launcher/OfflineDAoC.dll']) {
         $ok = (Sha (Join-Path $GameFolder 'runtime\OfflineDAoC.dll')) -eq $info['launcher/OfflineDAoC.dll'].ToLowerInvariant()
     }

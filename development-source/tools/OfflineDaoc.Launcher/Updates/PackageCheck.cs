@@ -36,17 +36,17 @@ public sealed class PackageContents
 
 // Checks a Living Server release package before anything of it is used, the same things tools/installer/build.py
 // checks before Setup embeds one: everything sits in one top folder named LivingServer-<build>, BUILD-INFO.txt there
-// names the build the release's tag names, the install and rollback scripts are there, and GameServer.dll is the file
+// names the build the release's tag names, the install and rollback scripts are there, and server/GameServer.dll is the file
 // BUILD-INFO.txt names. The package's own INSTALL.cmd then checks every other file against BUILD-INFO.txt.
 public static class PackageCheck
 {
     public static readonly string[] RequiredFiles =
     {
-        "BUILD-INFO.txt", "GameServer.dll", "GameServer.pdb", "INSTALL.cmd", "ROLLBACK.cmd",
+        "BUILD-INFO.txt", "server/GameServer.dll", "server/GameServer.pdb", "INSTALL.cmd", "ROLLBACK.cmd",
         "install-server-build.ps1", "rollback-server-build.ps1", "fork-build-common.ps1",
     };
 
-    public static readonly string[] RequiredBuildInfo = { "BuildName", "BaseRelease", "GameServer.dll", "GameServer.pdb" };
+    public static readonly string[] RequiredBuildInfo = { "BuildName", "BaseRelease", "server/GameServer.dll", "server/GameServer.pdb" };
 
     public static string TopFolderFor(BuildVersion build) => "LivingServer-" + build.Name;
 
@@ -98,9 +98,9 @@ public static class PackageCheck
 
         string dll;
         using (var sha = SHA256.Create())
-        using (Stream s = Find(zip, top + "/GameServer.dll").Open())
+        using (Stream s = Find(zip, top + "/server/GameServer.dll").Open())
             dll = BitConverter.ToString(sha.ComputeHash(s)).Replace("-", "").ToLowerInvariant();
-        if (!string.Equals(dll, info["GameServer.dll"].ToLowerInvariant(), StringComparison.Ordinal))
+        if (!string.Equals(dll, info["server/GameServer.dll"].ToLowerInvariant(), StringComparison.Ordinal))
             throw new PackageRefusedException("The package's GameServer.dll doesn't match its BUILD-INFO.txt.");
         return new PackageContents(top, info);
     }

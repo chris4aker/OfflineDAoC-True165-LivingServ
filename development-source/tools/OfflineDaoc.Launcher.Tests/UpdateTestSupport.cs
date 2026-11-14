@@ -7,7 +7,7 @@ using OfflineDaoc.Updates;
 namespace OfflineDaoc.Launcher.Tests;
 
 // Shared by the update tests: a fake internet (recorded answers, no network), throwaway folders and small packages
-// laid out like the real release zips (LivingServer-<build>/BUILD-INFO.txt, GameServer.dll, the scripts).
+// laid out like the real release zips (LivingServer-<build>/BUILD-INFO.txt, server/GameServer.dll, the scripts).
 internal sealed class FakeReleaseWeb : IReleaseWeb
 {
     public string? Json;
@@ -54,8 +54,8 @@ internal static class UpdateFixtures
         byte[] dll = "a server build"u8.ToArray();
         var files = new Dictionary<string, byte[]>
         {
-            ["GameServer.dll"] = dll,
-            ["GameServer.pdb"] = "symbols"u8.ToArray(),
+            ["server/GameServer.dll"] = dll,
+            ["server/GameServer.pdb"] = "symbols"u8.ToArray(),
             ["INSTALL.cmd"] = "@echo off\r\n"u8.ToArray(),
             ["ROLLBACK.cmd"] = "@echo off\r\n"u8.ToArray(),
             ["install-server-build.ps1"] = "# install"u8.ToArray(),
@@ -64,7 +64,7 @@ internal static class UpdateFixtures
             ["launcher/OfflineDAoC.dll"] = "launcher"u8.ToArray(),
         };
         files["BUILD-INFO.txt"] = System.Text.Encoding.UTF8.GetBytes(
-            $"BuildName={build}\r\nBaseRelease=0.37\r\nCommit=abc\r\nGameServer.dll={Sha(dll)}\r\nGameServer.pdb={Sha(files["GameServer.pdb"])}\r\n");
+            $"BuildName={build}\r\nBaseRelease=0.7\r\nCommit=abc\r\nserver/GameServer.dll={Sha(dll)}\r\nserver/GameServer.pdb={Sha(files["server/GameServer.pdb"])}\r\n");
         change?.Invoke(files);
         using var ms = new MemoryStream();
         using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, true))

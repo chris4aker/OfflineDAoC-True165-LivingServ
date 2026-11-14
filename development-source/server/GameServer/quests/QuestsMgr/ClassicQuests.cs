@@ -280,15 +280,15 @@ namespace DOL.GS.Quests
                         InventoryLogging.LogInventoryAction(giver, player, eInventoryActionType.Quest, template);
                         return false;
                     }
-                    player.ForceGainExperience(rewardXp);
+                    player.GainQuestExperience(rewardXp);
                     return false;
                 case CollectRewards.Kind.Hostile:
                     if (SpawnHostile(player, rewards))
                         return true;
-                    player.ForceGainExperience(rewardXp);
+                    player.GainQuestExperience(rewardXp);
                     return false;
                 default:
-                    player.ForceGainExperience(rewardXp);
+                    player.GainQuestExperience(rewardXp);
                     return false;
             }
         }

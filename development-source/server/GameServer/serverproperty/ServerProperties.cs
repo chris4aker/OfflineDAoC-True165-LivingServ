@@ -746,6 +746,26 @@ namespace DOL.GS.ServerProperties
 		public static double BOT_XP_RATE;
 
 		/// <summary>
+		/// Living Server (off by default): XP rates by level range for real players, replacing the Player XP rate inside each
+		/// listed range (see LevelRangeXpRates). Empty keeps the flat rate.
+		/// </summary>
+		[ServerProperty("rates", "xp_rate_by_level", "Living Server, off by default: an XP rate by level range for real player characters, for example 1-19:3;20-34:5;35-50:12. Inside a listed range its rate replaces xp_rate (the launcher's Player XP rate); other levels keep xp_rate. In RvR zones the RvR rate still multiplies it. Empty (the default) or an invalid value keeps the flat xp_rate.", "")]
+		public static string XP_RATE_BY_LEVEL;
+
+		/// <summary>
+		/// Living Server (off by default): XP rates by level range for autonomous gamebots, replacing bot_xp_rate inside each
+		/// listed range. Empty keeps the flat rate.
+		/// </summary>
+		[ServerProperty("rates", "bot_xp_rate_by_level", "Living Server, off by default: an XP rate by level range for autonomous gamebots, for example 1-19:1.5;20-34:2.5;35-50:6. Inside a listed range its rate replaces bot_xp_rate (the launcher's gamebot XP rate); other levels keep bot_xp_rate. In RvR zones the RvR rate still multiplies it. Empty (the default) or an invalid value keeps the flat bot_xp_rate. Hired companions follow xp_rate_by_level, as they follow the Player XP rate.", "")]
+		public static string BOT_XP_RATE_BY_LEVEL;
+
+		/// <summary>
+		/// Living Server (off by default): quest experience follows xp_rate_by_level (see QuestExperience).
+		/// </summary>
+		[ServerProperty("rates", "quest_xp_by_level", "Living Server, off by default in True 1.65: quest experience follows xp_rate_by_level. When true and one of its ranges covers the player's level, the XP of data quests, reward quests and the battleground quests is multiplied by that level's rate, and one quest payment never pays more than one level. False: quest XP exactly as True 1.65 pays it.", false)]
+		public static bool QUEST_XP_BY_LEVEL;
+
+		/// <summary>
 		/// The CL Experience Rate
 		/// </summary>
 		[ServerProperty("rates", "cl_xp_rate", "The Champion Level Experience Points Rate Modifier - Edit this to change the rate at which you gain CL experience points e.g 1.5 is 50% more 2.0 is twice the amount (100%) 0.5 is half the amount (50%)", 1.0)]
@@ -2398,6 +2418,12 @@ namespace DOL.GS.ServerProperties
 		/// </summary>
 		[ServerProperty("bots", "bot_incoming_fire_reaction", "Autonomous gamebots hit by a player, bot or pet react like a player: a 0.3-2.5 s reaction delay (healers heal meanwhile; shorter for tanks and bold personalities), an area spell from a distance doesn't make its caster the bot's target, and healers cure a dotted group with the group cure. Companions and bots in your group are not affected. Off by default in the True 1.65 edition (it changes how gamebots fight): the immediate reaction.", false)]
 		public static bool BOT_INCOMING_FIRE_REACTION;
+
+		/// <summary>
+		/// Living Server (off by default): new gamebots are named in the style of 2003's servers (EraBotNames).
+		/// </summary>
+		[ServerProperty("bots", "bot_era_names", "Living Server, off by default in True 1.65: new gamebots get names in the style of 2003's servers (three in four made-up, compound, joke or first names, some xX and number names; the rest lore names) instead of True 1.65's race-styled names. Bots that already have a name keep it.", false)]
+		public static bool BOT_ERA_NAMES;
 
 		/// <summary>
 		/// Autonomous gamebots speak lines from the bot-voices corpus in their own writing style.

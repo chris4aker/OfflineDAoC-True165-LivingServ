@@ -71,6 +71,36 @@ namespace DOL.UnitTests
             return registry;
         }
 
+        // Living Server, off by default: bot_era_names names new gamebots in the 2003 mix (pool 900), unique and claimed in the
+        // same table; off, the race-styled pools as before.
+        [Test]
+        public void EraNamesWhenSwitchedOn_RaceNamesWhenOff()
+        {
+            bool saved = DOL.GS.ServerProperties.Properties.BOT_ERA_NAMES;
+            try
+            {
+                string cs = TempDb();
+                BotNameRegistry r = Registry(cs, BuiltIn());
+                DOL.GS.ServerProperties.Properties.BOT_ERA_NAMES = true;
+                var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < 300; i++)
+                {
+                    Assert.That(r.TryClaimNewBotName(eRealm.Midgard, eRace.Norseman, eGender.Male, i + 1, out string name), Is.True);
+                    Assert.That(names.Add(name), Is.True, "unique: " + name);
+                }
+                Assert.That(names.Count(n => n.Any(char.IsDigit) || n.StartsWith("Xx", StringComparison.Ordinal)), Is.GreaterThan(0),
+                    "the era mix has its xX and number names");
+
+                DOL.GS.ServerProperties.Properties.BOT_ERA_NAMES = false;
+                Assert.That(r.TryClaimNewBotName(eRealm.Midgard, eRace.Norseman, eGender.Male, 999, out string plain), Is.True);
+                Assert.That(plain.All(char.IsLetter), Is.True, "off: a race-styled name");
+            }
+            finally
+            {
+                DOL.GS.ServerProperties.Properties.BOT_ERA_NAMES = saved;
+            }
+        }
+
         private static void Exec(string cs, string sql)
         {
             using var c = new SQLiteConnection(cs);

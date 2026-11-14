@@ -2336,11 +2336,11 @@ namespace DOL.GS
                 {
                     long zoneBonus = baseExperience * CurrentZone.BonusExperience / 100;
                     if (zoneBonus > 0)
-                        experienceGained += ScaleBotExperience(zoneBonus, false, hiredCompanion);
+                        experienceGained += ScaleBotExperience(zoneBonus, false, hiredCompanion, Level);
                 }
 
                 baseExperience = ScaleBotExperience(baseExperience,
-                    CurrentRegion?.IsRvR == true || CurrentZone?.IsRvR == true, hiredCompanion);
+                    CurrentRegion?.IsRvR == true || CurrentZone?.IsRvR == true, hiredCompanion, Level);
 
                 long itemExperienceBonus = GetModified(eProperty.XpPoints);
                 if (itemExperienceBonus != 0)
@@ -2429,14 +2429,17 @@ namespace DOL.GS
 
         private static long ScaleAutonomousExperience(long experience, bool isRvR)
         {
-            return ScaleBotExperience(experience, isRvR, false);
+            return ScaleBotExperience(experience, isRvR, false, 0);
         }
 
         // Launcher XP options (owner 2026-11-10): gamebot rate for autonomous bots, player rate for hired companions.
-        private static long ScaleBotExperience(long experience, bool isRvR, bool hiredCompanion)
+        // Living Server (off by default): xp_rate_by_level and bot_xp_rate_by_level replace those rates inside their level
+        // ranges (LevelRangeXpRates); empty, they are the launcher rates. Level 0: the flat rates.
+        private static long ScaleBotExperience(long experience, bool isRvR, bool hiredCompanion, int level)
         {
-            double rate = XpRates165.BotMultiplier(hiredCompanion, isRvR, Classic165Mode.PlayerXpRate,
-                Classic165Mode.BotXpRate, ServerProperties.Properties.RvR_XP_RATE);
+            double playerRate = level > 0 ? LevelRangeXpRates.PlayerRate(level) : Classic165Mode.PlayerXpRate;
+            double botRate = level > 0 ? LevelRangeXpRates.BotRate(level) : Classic165Mode.BotXpRate;
+            double rate = XpRates165.BotMultiplier(hiredCompanion, isRvR, playerRate, botRate, ServerProperties.Properties.RvR_XP_RATE);
             return (long)(experience * rate);
         }
 

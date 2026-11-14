@@ -87,8 +87,8 @@ namespace DOL.UnitTests
             Properties.RvR_XP_RATE = 1;
             MethodInfo scale = typeof(GameBot).GetMethod("ScaleBotExperience",
                 BindingFlags.Static | BindingFlags.NonPublic)!;
-            Assert.That(scale.Invoke(null, new object[] { 100L, false, true }), Is.EqualTo(400L));
-            Assert.That(scale.Invoke(null, new object[] { 100L, false, false }), Is.EqualTo(200L));
+            Assert.That(scale.Invoke(null, new object[] { 100L, false, true, 0 }), Is.EqualTo(400L));
+            Assert.That(scale.Invoke(null, new object[] { 100L, false, false, 0 }), Is.EqualTo(200L));
         }
     }
 }

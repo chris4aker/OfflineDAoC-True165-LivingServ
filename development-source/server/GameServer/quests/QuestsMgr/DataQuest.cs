@@ -1709,7 +1709,7 @@ namespace DOL.GS.Quests
 					{
 						if (RewardXP > 0)
 						{
-							m_questPlayer.ForceGainExperience(ClassicQuests.ScaleXP(ID, m_questPlayer, Step - 1, RewardXP));
+							m_questPlayer.GainQuestExperience(ClassicQuests.ScaleXP(ID, m_questPlayer, Step - 1, RewardXP));
 						}
 	
 						if (RewardRP > 0)
@@ -2053,7 +2053,7 @@ namespace DOL.GS.Quests
 
 							if (m_rewardXPs.Count > 0 && m_rewardXPs[0] > 0)
 							{
-								player.ForceGainExperience(ClassicQuests.ScaleXP(ID, player, 0, m_rewardXPs[0]));
+								player.GainQuestExperience(ClassicQuests.ScaleXP(ID, player, 0, m_rewardXPs[0]));
 							}
 							
 							if (m_rewardCLXPs.Count > 0 && m_rewardCLXPs[0] > 0)
@@ -2259,7 +2259,7 @@ namespace DOL.GS.Quests
 				void GiveTurnInReward(long xp)
 				{
 					if (collectRewards == null)
-						player.ForceGainExperience(xp);
+						player.GainQuestExperience(xp);
 					else if (ClassicQuests.GiveCollectReward(player, obj, collectRewards, xp, !hostileFreed))
 						hostileFreed = true;
 				}
@@ -2834,7 +2834,7 @@ namespace DOL.GS.Quests
 
 								if (m_rewardXPs.Count > 0 && m_rewardXPs[0] > 0)
 								{
-									player.ForceGainExperience(ClassicQuests.ScaleXP(ID, player, 0, m_rewardXPs[0]));
+									player.GainQuestExperience(ClassicQuests.ScaleXP(ID, player, 0, m_rewardXPs[0]));
 								}
 								
 								if (m_rewardCLXPs.Count > 0 && m_rewardCLXPs[0] > 0)
@@ -3114,7 +3114,7 @@ namespace DOL.GS.Quests
 								return false;
 							}
 	
-							m_questPlayer.ForceGainExperience(ClassicQuests.ScaleXP(ID, m_questPlayer, lastStep - 1, rewardXP));
+							m_questPlayer.GainQuestExperience(ClassicQuests.ScaleXP(ID, m_questPlayer, lastStep - 1, rewardXP));
 						}
 	
 						if (rewardRP > 0)
@@ -3198,7 +3198,7 @@ namespace DOL.GS.Quests
 								return false;
 							}
 	
-							m_questPlayer.ForceGainExperience(ClassicQuests.ScaleXP(ID, m_questPlayer, 0, rewardXP));
+							m_questPlayer.GainQuestExperience(ClassicQuests.ScaleXP(ID, m_questPlayer, 0, rewardXP));
 						}
 	
 						if (rewardRP > 0)

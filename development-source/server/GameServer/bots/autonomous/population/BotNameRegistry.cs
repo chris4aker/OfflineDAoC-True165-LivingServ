@@ -234,6 +234,16 @@ namespace DOL.GS
                 if (gender != eGender.Female)
                     gender = eGender.Male;
 
+                // Living Server (off by default): names in the style of 2003's servers (EraBotNames), when switched on.
+                if (ServerProperties.Properties.BOT_ERA_NAMES)
+                {
+                    EraClaim era = TryClaimEraName(BotNameGenerator.RealmOf(race), gender, botId, out name);
+                    if (era == EraClaim.Claimed)
+                        return true;
+                    if (era == EraClaim.Busy)
+                        return false;
+                }
+
                 var races = new List<eRace> { race };
                 lock (_claimLock)
                     races.AddRange(BotNameGenerator.StyleRaces.Where(r => r != race && BotNameGenerator.RealmOf(r) == BotNameGenerator.RealmOf(race))
@@ -256,6 +266,45 @@ namespace DOL.GS
         }
 
         private enum ClaimResult { Claimed, Busy, Exhausted }
+
+        /// <summary>The claim table's pool for Living Server's 2003-style names (race pools are below 100, compounds 100-103).</summary>
+        public const int EraPoolId = 900;
+
+        private enum EraClaim { Claimed, Busy, NoName }
+
+        /// <summary>
+        /// Living Server's 2003-style names (EraBotNames, owner 2026-10-29), behind bot_era_names: a few tries of the era mix,
+        /// each checked against the live block list and, for a letters-only name, against this generator's own rules.
+        /// NoName leaves the race-styled pools to name the bot.
+        /// </summary>
+        private EraClaim TryClaimEraName(eRealm realm, eGender gender, long botId, out string claimed)
+        {
+            claimed = null;
+            string found = null;
+            lock (_claimLock)
+            {
+                BotNameGenerator generator = _generator;
+                bool Rejected(string candidate) => IsLiveBlocked(candidate) ||
+                    candidate.All(char.IsLetter) && generator != null && !generator.Ok(candidate.ToLowerInvariant());
+                bool committed = TryWrite(_options.ClaimWaitMs, (c, tx) =>
+                {
+                    for (int attempt = 0; attempt < 8 && found == null; attempt++)
+                    {
+                        OfflineDaoc.Shared.EraBotNames.Style style = OfflineDaoc.Shared.EraBotNames.PickStyle(_random);
+                        string name = OfflineDaoc.Shared.EraBotNames.Generate(style, (int)realm, gender == eGender.Female, null, _random,
+                            _ => false, Rejected, null);
+                        if (name != null && Exec(c, tx, $"INSERT INTO {NamesTable}(NameKey, BotId, State, ReleasedUtc, Pool) VALUES(@n, @b, 0, NULL, @p) ON CONFLICT(NameKey) DO NOTHING",
+                                ("@n", name), ("@b", botId), ("@p", EraPoolId)) == 1)
+                            found = name;
+                    }
+                    return true;
+                });
+                if (!committed)
+                    return EraClaim.Busy;
+            }
+            claimed = found;
+            return found != null ? EraClaim.Claimed : EraClaim.NoName;
+        }
 
         private ClaimResult ClaimFor(eRace race, eGender gender, long botId, out string claimed)
         {

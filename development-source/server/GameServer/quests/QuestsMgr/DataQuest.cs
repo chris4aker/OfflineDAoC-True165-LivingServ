@@ -247,6 +247,8 @@ namespace DOL.GS.Quests
 		// once however many notifications carry it (QuestKillCredit.IsRepeat).
 		GameLiving m_lastKillCounted;
 		long m_lastKillCountedAt;
+		// Living Server (from HearthDAoC): the item being handed over while its step advances; it doesn't count as carried.
+		DbInventoryItem m_handingOver;
 
 		/// <summary>The clock the once-per-kill rule reads: the game loop's. A test double can move it.</summary>
 		protected virtual long KillClock => GameLoop.GameLoopTime;
@@ -1659,9 +1661,12 @@ namespace DOL.GS.Quests
 					{
 						// Allow StepItemTemplate to be empty, assume quest player received item in a previous step or outside of the quest
 
-						if (!string.IsNullOrEmpty(m_stepItemTemplates[Step].Trim()))
+						// Not a second copy of an item the player carries or the finishing step hands (Living Server, from
+						// HearthDAoC: "Traveler's Way -- Supply Run" gave two bundles).
+						string deliveryItem = m_stepItemTemplates[Step].Trim();
+						if (QuestDeliveryItems.ShouldHand(deliveryItem, CarriedItemIds(QuestPlayer), stepTemplates))
 						{
-							stepTemplates.Add(m_stepItemTemplates[Step].Trim());
+							stepTemplates.Add(deliveryItem);
 						}
 					}
 
@@ -2654,7 +2659,7 @@ namespace DOL.GS.Quests
 									}
 								}
 
-								if (AdvanceQuestStep(obj))
+								if (AdvanceQuestStepHandingOver(obj, item))
 								{
 									RemoveItem(obj, player, item, true);
 									RemoveCopies(obj, player, others, needed - Math.Max(1, item.Count));
@@ -2697,7 +2702,7 @@ namespace DOL.GS.Quests
 							}
 						}
 
-						if (AdvanceQuestStep(obj))
+						if (AdvanceQuestStepHandingOver(obj, item))
 						{
 							RemoveItem(obj, player, item, true);
 						}
@@ -2921,6 +2926,34 @@ namespace DOL.GS.Quests
 		/// </summary>
 		/// <param name="player"></param>
 		/// <param name="enemy"></param>
+		/// <summary>
+		/// Advances the step for an item the player hands over. The item is still in the backpack until the step has
+		/// advanced, so it is marked for CarriedItemIds, which leaves it out (Living Server, from HearthDAoC).
+		/// </summary>
+		protected bool AdvanceQuestStepHandingOver(GameObject obj, DbInventoryItem item)
+		{
+			m_handingOver = item;
+			try
+			{
+				return AdvanceQuestStep(obj);
+			}
+			finally
+			{
+				m_handingOver = null;
+			}
+		}
+
+		/// <summary>The backpack's item ids that count as carried: all but the item being handed over (Living Server).</summary>
+		protected List<string> CarriedItemIds(GamePlayer player)
+		{
+			lock (player.Inventory.Lock)
+			{
+				return QuestDeliveryItems.CarriedIds(player.Inventory.AllItems
+					.Where(i => i.SlotPosition >= (int)eInventorySlot.FirstBackpack && i.SlotPosition <= (int)eInventorySlot.LastBackpack)
+					.Select(i => (i.Id_nb, i.Count, ReferenceEquals(i, m_handingOver) ? Math.Max(i.Count, 1) : 0)));
+			}
+		}
+
 		/// <summary>
 		/// Tells the player and returns true when the journal is full; checked before any record, item or text exists, so a
 		/// refused quest isn't half-started (Living Server, from HearthDAoC).
@@ -3411,6 +3444,13 @@ namespace DOL.GS.Quests
 			{
 				m_questPlayer.RemoveFinishedQuest(this);
 				DeleteFromDatabase();
+			}
+			else
+			{
+				// An abandoned repeat keeps its count but goes back to step 0, as a finish leaves it; with its step kept
+				// the next login put it back in the journal (Living Server, from HearthDAoC).
+				m_charQuest.Step = 0;
+				GameServer.Database.SaveObject(m_charQuest);
 			}
 
 			m_questPlayer.Out.SendQuestListUpdate();

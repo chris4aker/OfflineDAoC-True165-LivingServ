@@ -62,7 +62,8 @@ public static class RealmRaidRecord
     /// Special Forces joined it.</summary>
     public static void Add(string raidId, string outcome, bool forced = false, bool withSpecialForces = false)
     {
-        if (forced || !Counted(outcome)) return;
+        // with the Special Forces off nothing reads the record: don't gather results (it loads from the ledger when on)
+        if (forced || !Counted(outcome) || !AutonomousEpicSpecialForces.Enabled) return;
         var result = new RaidResult(outcome, withSpecialForces);
         lock (Sync)
         {

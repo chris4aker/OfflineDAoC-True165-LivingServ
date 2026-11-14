@@ -211,12 +211,19 @@ public static partial class AutonomousRealmRaid
         long now = GameLoop.GameLoopTime;
         Dictionary<int, long> failedUntil = FailedSlots.GetValue(raid, _ => new Dictionary<int, long>());
         Vector3 foundStaging = default, foundHub = default;
-        // the Epic Special Forces (Living Server, off by default) may also take the three slots past the realm's 38
-        slot = NextPlaceableSlot(specialForces ? RealmRaidRecruitmentPolicy.FormationSlots : RealmRaidRecruitmentPolicy.MaximumParties,
-            s => raid.Parties.Values.Any(p => p.FormationSlot == s),
-            s => failedUntil.GetValueOrDefault(s) > now,
-            s => TryStaging(raid, s, out foundStaging) && TryHubPost(raid, s, out foundHub),
-            s => failedUntil[s] = now + FailedSlotRetryMilliseconds);
+        // the Epic Special Forces (Living Server, off by default) take the three slots past the realm's 38 first, so they
+        // come on top of the realm's parties, and a realm slot only when none of those three can be placed
+        Func<int, bool> used = s => raid.Parties.Values.Any(p => p.FormationSlot == s);
+        Func<int, bool> recentlyFailed = s => failedUntil.GetValueOrDefault(s) > now;
+        Func<int, bool> place = s => TryStaging(raid, s, out foundStaging) && TryHubPost(raid, s, out foundHub);
+        Action<int> failed = s => failedUntil[s] = now + FailedSlotRetryMilliseconds;
+        slot = specialForces
+            ? NextPlaceableSlot(RealmRaidRecruitmentPolicy.FormationSlots,
+                s => s < RealmRaidRecruitmentPolicy.MaximumParties || used(s), recentlyFailed, place, failed)
+            : -1;
+        if (slot < 0)
+            slot = NextPlaceableSlot(specialForces ? RealmRaidRecruitmentPolicy.FormationSlots : RealmRaidRecruitmentPolicy.MaximumParties,
+                used, recentlyFailed, place, failed);
         staging = foundStaging;
         hubPost = foundHub;
         return slot >= 0;

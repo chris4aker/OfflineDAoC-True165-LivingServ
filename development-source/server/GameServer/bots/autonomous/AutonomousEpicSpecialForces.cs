@@ -100,6 +100,8 @@ public static class AutonomousEpicSpecialForces
 
     /// <summary>A Horn raid's wipe at its final encounter calls them (once per raid; Request keeps the one-call rule)
     /// while the raid still has a retry: True 1.65 calls the battle off at its third wipe.</summary>
+    // A launcher-forced raid gets them after a wipe too (the owner's test raids); only the call at the start of a
+    // battle leaves forced raids out, because their record isn't kept. `forced` is kept for the callers' clarity.
     public static bool SpecialForcesAnswer(int finalWipes, bool forced) =>
         Enabled && finalWipes >= 1 && !RealmRaidRecruitmentPolicy.HornBattleFailed(finalWipes);
 

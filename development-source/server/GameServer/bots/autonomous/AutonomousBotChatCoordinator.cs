@@ -2158,6 +2158,9 @@ public static class AutonomousBotChatCoordinator
             return null;
         if (safe.Length > 240)
             safe = safe[..240];
+        // True 1.65: a gamebot's line goes on its period channel (BotChatChannels165), not <Faction>.
+        if (PeriodVoiceChannel(speakerName, realm, safe) is { } routed)
+            return BotChatChannels165.Send(routed.Channel, speakerName, realm, routed.Region, safe, routed.Level, routed.ClassName) ? safe : null;
         string formatted = $"({speakerName}) <Faction> {safe}";
         foreach (GamePlayer player in ClientService.Instance.GetPlayersOfRealm(realm))
             player.Out.SendMessage(formatted, eChatType.CT_Broadcast, eChatLoc.CL_ChatWindow);
@@ -3269,6 +3272,61 @@ public static class AutonomousBotChatCoordinator
     private static string LowerFirst(string value) => string.IsNullOrEmpty(value) ? value : char.ToLowerInvariant(value[0]) + value[1..];
 
     #region True 1.65 after the port base: period channels, /lfg, /advice and the reply sample (shadowofze)
+
+    /// <summary>The channel each running exchange went out on, so its replies reach the same players (a /broadcast in the
+    /// opener's region), and when it was last used.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<long, (BotChatChannels165.Channel Channel, Region Region, long At)> ExchangeChannels = new();
+
+    /// <summary>How long bots answering a player's /faction line stay on /faction, and an exchange keeps its channel.</summary>
+    public const long PlayerFactionAnswerMs = 120_000, ExchangeChannelMs = 600_000;
+
+    public readonly record struct RoutedVoice(BotChatChannels165.Channel Channel, Region Region, int Level, string ClassName);
+
+    /// <summary>
+    /// True 1.65 edition (the port's known gap, closed 2026-11-14): Living Server's voices all go through the /faction sink
+    /// (BroadcastFactionAsWritten), and here a gamebot's line leaves it on True 1.65's period channel instead: RvR on the
+    /// realm chat group, trade and general talk on /broadcast in the speaker's region, questions on /advice
+    /// (BotChatChannels165.Classify, from the line's feature and text). The lines of one exchange (a thread, a debate, a
+    /// storyline) stay on the channel and in the region its first line went to. Null keeps the line on /faction: period
+    /// channels off, a player's own line, or bots answering a player's /faction line (as True 1.65 answers it).
+    /// </summary>
+    private static RoutedVoice? PeriodVoiceChannel(string speakerName, eRealm realm, string text)
+    {
+        if (!BotChatChannels165.PeriodChannels)
+            return null;
+        AutonomousChatExchange.Source source = AutonomousChatExchange.Current;
+        GameBot speaker = source?.Speaker != null && string.Equals(source.Speaker.Name, speakerName, StringComparison.Ordinal)
+            ? source.Speaker
+            : AutonomousBotRegistry.TryGetByName(speakerName, out GameBot named) ? named : null;
+        if (speaker == null)
+            return null;   // a player's own /faction line
+        long now = GameLoop.GameLoopTime;
+        // a player's /faction line (a GM: /faction is GM-only for players in True 1.65) is answered on /faction
+        long spoke;
+        lock (Sync)
+            spoke = LastPlayerFactionLine.GetValueOrDefault(realm, long.MinValue / 2);
+        if (source?.Feature == "player" && now - spoke <= PlayerFactionAnswerMs)
+            return null;
+        if (source != null && source.Exchange > 0 && ExchangeChannels.TryGetValue(source.Exchange, out var kept) && now - kept.At <= ExchangeChannelMs)
+        {
+            ExchangeChannels[source.Exchange] = kept with { At = now };
+            return Routed(kept.Channel, kept.Region, speaker);
+        }
+        BotChatChannels165.Channel channel = BotChatChannels165.Classify(source?.Feature, text, IsPvpContext(speaker));
+        if (channel == BotChatChannels165.Channel.Faction)
+            return null;
+        if (source != null && source.Exchange > 0)
+        {
+            if (ExchangeChannels.Count > 512)
+                foreach (var old in ExchangeChannels.Where(entry => now - entry.Value.At > ExchangeChannelMs).ToArray())
+                    ExchangeChannels.TryRemove(old.Key, out _);
+            ExchangeChannels[source.Exchange] = (channel, speaker.CurrentRegion, now);
+        }
+        return Routed(channel, speaker.CurrentRegion, speaker);
+    }
+
+    private static RoutedVoice Routed(BotChatChannels165.Channel channel, Region region, GameBot speaker) =>
+        new(channel, region, speaker.Level, speaker.CharacterClass?.Name);
 
     /// <summary>
     /// The gap between two ambient /say lines in one zone: 90 s with 10 bots or fewer, one second less per bot above

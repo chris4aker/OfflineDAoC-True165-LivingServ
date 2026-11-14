@@ -156,7 +156,13 @@ internal sealed class RuneButton : Button
     private bool _pressed;
     [Browsable(false)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public Color Accent { get; init; } = DaocTheme.Gold;
+    public Color Accent
+    {
+        get => _accent;
+        // Living Server: settable after creation, so START SERVER turns gold as GET UPDATE when an update is offered.
+        set { _accent = value; Invalidate(); }
+    }
+    private Color _accent = DaocTheme.Gold;
 
     public RuneButton()
     {

@@ -210,7 +210,7 @@ internal sealed partial class MainForm : Form
         // one ENTER REALM button again (owner 2026-10-30): from 0.38 the new client is the only client
         _playButton = ActionButton("ENTER REALM", Color.FromArgb(65, 94, 145));
         _newClient = NewClient.Find(_root);
-        _startButton.Click += (_, _) => StartServer();
+        _startButton.Click += (_, _) => OnStartButton();
         _stopButton.Click += async (_, _) => await StopServerAsync();
         _playButton.Click += (_, _) => LaunchNewClient();
         SetToolTip(_playButton, _newClient != null
@@ -272,6 +272,8 @@ internal sealed partial class MainForm : Form
             ScheduleNextAutoRefresh();
             UpdateAutoRefreshCountdown();
             _autoRefresh.Start();
+            // Living Server: one quiet look for a newer build (at most once a day; the player can turn it off).
+            await CheckForUpdatesAsync(asked: false);
         };
         // The saved goals file is the source of truth: fill the boxes from it before the first dashboard refresh.
         RefreshPopulationStatus(force: true);
@@ -279,6 +281,7 @@ internal sealed partial class MainForm : Form
         {
             _serverReadinessPoll.Stop();
             _serverLog?.Dispose();
+            _releaseWeb?.Dispose();
         };
         UiScale.Apply(this);
     }
@@ -397,14 +400,17 @@ internal sealed partial class MainForm : Form
             ForeColor = DaocTheme.Tint(196, 145, 70),
             Location = new Point(97, 57),
         });
-        titlePanel.Controls.Add(new Label
+        var versionLabel = new Label
         {
             AutoSize = true,
             Text = $"VERSION {DisplayVersion}",
             Font = new Font("Georgia", 12f, FontStyle.Bold),
             ForeColor = DaocTheme.GoldLight,
             Location = new Point(97, 79),
-        });
+        };
+        titlePanel.Controls.Add(versionLabel);
+        // Living Server: its build, "Check for updates" and update news (MainForm.Updates.cs).
+        AddUpdateStrip(titlePanel, versionLabel);
         header.Controls.Add(titlePanel, 0, 0);
 
         var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(3, 5, 0, 0), BackColor = Color.Transparent };
@@ -509,6 +515,11 @@ internal sealed partial class MainForm : Form
         records.Enter += async (_, _) => await eventRecords.RefreshAsync();
         tabs.TabPages.Add(records);
         tabs.TabPages.Add(options);
+        // Living Server: its settings tab, second in the list (owner 2026-10-28). SocialExpansionSettingsControl.cs.
+        var livingServer = new TabPage("Living Server") { BackColor = DaocTheme.Panel, ForeColor = DaocTheme.Text };
+        _livingServerSettings = new SocialExpansionSettingsControl(_database, BotGoalsServerStopped);
+        livingServer.Controls.Add(_livingServerSettings);
+        tabs.TabPages.Insert(1, livingServer);
         var botGoals = new TabPage("Bot Goals Setting") { BackColor = DaocTheme.Panel, ForeColor = DaocTheme.Text };
         _botGoalsSettings = new BotGoalsSettingsControl(
             StateFile(OfflineDaoc.Configuration.BotGoalSettings.FileName), BotGoalsServerStopped);
@@ -1318,9 +1329,9 @@ internal sealed partial class MainForm : Form
             _helpTip.SetToolTip(_performanceValue, snapshot.BotAiDelay is { } aiPeak
                 ? $"{PerformanceHelp}{Environment.NewLine}Last minute: average {aiPeak.AverageMs:0.0} ms, slowest {aiPeak.PeakMs:N0} ms over {aiPeak.Samples:N0} ticks."
                 : $"{PerformanceHelp}{Environment.NewLine}Shown about a minute after the server starts.");
-            _startButton.Enabled = !_savingOptions && !_stoppingServer && snapshot.ServerState == "Stopped" && File.Exists(_serverExecutable);
+            _startButton.Enabled = !_updating && !_savingOptions && !_stoppingServer && snapshot.ServerState == "Stopped" && File.Exists(_serverExecutable);
             _stopButton.Enabled = !_stoppingServer && snapshot.ServerState is "Running" or "Starting";
-            _playButton.Enabled = !_stoppingServer && snapshot.ServerState == "Running" && _newClient != null;
+            _playButton.Enabled = !_updating && !_stoppingServer && snapshot.ServerState == "Running" && _newClient != null;
             UpdateOptionControls(snapshot);
             ApplyFilter();
             UpdateDeleteButton();
@@ -2827,6 +2838,7 @@ internal sealed partial class MainForm : Form
     }
 
     private BotGoalsSettingsControl? _botGoalsSettings;
+    private SocialExpansionSettingsControl? _livingServerSettings;
 
     private bool BotGoalsServerStopped()
     {
@@ -2841,7 +2853,22 @@ internal sealed partial class MainForm : Form
         // and the TCP listener coming online.  Without it, a second click can
         // start another CoreServer while the first one is still loading the
         // world, and both processes then contend for the same SQLite database.
-        if (_savingOptions || _serverProcess is { HasExited: false } || IsServerRunning() || FindExactServerProcess() is not null) return;
+        // Living Server: each refusal says why in the footer (a silent START SERVER looked broken, playtest 2026-11-04).
+        string? busy = _savingOptions ? "a setting is being saved"
+            : _serverProcess is { HasExited: false } ? "this launcher's server is still running"
+            : FindExactServerProcess() is not null ? "this game's server (CoreServer) is already running"
+            : IsServerRunning() ? $"another program is using port {ServerPortProbe.GameServerPort} (another Offline DAoC server?)"
+            : null;
+        if (busy != null)
+        {
+            _footer.Text = "Not starting: " + busy + ".";
+            return;
+        }
+        if (_livingServerSettings?.HasUnsavedChanges == true)
+        {
+            MessageBox.Show(this, "Save or undo your edits in Living Server before starting the server.", "Unsaved Living Server settings");
+            return;
+        }
         if (_botGoalsSettings?.HasUnsavedChanges == true)
         {
             MessageBox.Show(this, "Save or undo your edits in Bot Goals Setting before starting the server.", "Unsaved bot goals");
@@ -2914,11 +2941,20 @@ internal sealed partial class MainForm : Form
             _serverProcess = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
             _serverProcess.OutputDataReceived += (_, args) => { try { if (args.Data is not null) _serverLog?.WriteLine(args.Data); } catch (Exception) { } };
             _serverProcess.ErrorDataReceived += (_, args) => { try { if (args.Data is not null) _serverLog?.WriteLine("ERROR: " + args.Data); } catch (Exception) { } };
+            Process started = _serverProcess;
             _serverProcess.Exited += (_, _) => BeginInvoke(async () =>
             {
+                // Living Server: a stop nobody asked for (a crash at start looked like START SERVER doing nothing,
+                // playtest 2026-11-04) says so in the footer, and where the reason is.
+                bool unasked = !_stoppingServer;
+                int? code = null;
+                try { code = started.ExitCode; } catch (InvalidOperationException) { }
                 _serverReadinessPoll.Stop();
                 _stoppingServer = false;
                 await RefreshDashboardAsync();
+                if (unasked)
+                    _footer.Text = $"The server stopped by itself{(code is int c ? $" (exit code {c})" : "")}. " +
+                                   "The end of runtime\\logs\\server-console.log says why.";
             });
             _serverProcess.Start();
             ShowStartingState();
@@ -3087,7 +3123,8 @@ internal sealed partial class MainForm : Form
 
     private bool IsServerRunning()
     {
-        return IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Any(endpoint => endpoint.Port == 10300);
+        // The listener table first, then a short loopback connect when the table leaves the server out (Living Server, issue #32).
+        return ServerPortProbe.IsListening(ServerPortProbe.GameServerPort);
     }
 
     private void BeginServerReadinessPolling()

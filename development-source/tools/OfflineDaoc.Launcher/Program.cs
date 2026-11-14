@@ -5,6 +5,19 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        string serverRoot = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
+        if (args.Length == 1 && args[0] == "--apply-recommended-settings")
+        {
+            // Living Server Setup, after a first install: this edition's parts on (SocialExpansionSettings.Recommended).
+            Environment.ExitCode = ApplyRecommendedSettings(serverRoot);
+            return;
+        }
+        if (args.Length >= 2 && args[0] == "--apply-update")
+        {
+            // Tests and support: a Living Server update from a package on disk, without the window (Updates/ApplyUpdateCommand.cs).
+            Environment.ExitCode = Updates.ApplyUpdateCommand.Run(args, serverRoot);
+            return;
+        }
         // --refresh-165: update the True 1.65 world content in place (the same step as a start in that mode) and exit;
         // for scripts and test runs. Writes data\true165-refresh.log. Never with the server running.
         if (args.Any(a => a.Equals("--refresh-165", StringComparison.OrdinalIgnoreCase)))
@@ -61,5 +74,25 @@ internal static class Program
         ApplicationConfiguration.Initialize();
         // OfflineDAoC True 1.65 has no normal mode (owner 2026-10-31): no --mode= switch any more.
         Application.Run(new MainForm());
+    }
+
+    private static int ApplyRecommendedSettings(string serverRoot)
+    {
+        string database = TrueMode.Describe(serverRoot, true).DatabasePath;
+        try
+        {
+            bool stopped = System.Diagnostics.Process.GetProcessesByName("CoreServer").Length == 0;
+            SocialExpansionSettings.Recommended.Save(database, null, () => stopped);
+            var problems = new List<string>();
+            bool saved = SocialExpansionSettings.Load(database, problems) == SocialExpansionSettings.Recommended && problems.Count == 0;
+            Console.WriteLine(saved ? "Recommended Living Server settings saved in " + database
+                                    : "Saved, but reading back differs: " + string.Join("; ", problems));
+            return saved ? 0 : 2;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Recommended settings not saved: " + e.Message);
+            return 1;
+        }
     }
 }

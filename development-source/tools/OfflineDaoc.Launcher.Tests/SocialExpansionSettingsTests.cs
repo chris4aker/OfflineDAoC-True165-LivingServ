@@ -1,0 +1,537 @@
+using System.Data.SQLite;
+using System.Reflection;
+using System.Text.RegularExpressions;
+using NUnit.Framework;
+using OfflineDaoc.Launcher;
+
+[TestFixture, NonParallelizable, Apartment(ApartmentState.STA)]
+public class SocialExpansionSettingsTests
+{
+    private string _folder = null!, _database = null!;
+    private bool _stopped;
+    private const BindingFlags Hidden = BindingFlags.Instance | BindingFlags.NonPublic;
+
+    [SetUp] public void Setup()
+    {
+        _folder = Path.Combine(Path.GetTempPath(), "social-expansion-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_folder);
+        _database = Path.Combine(_folder, "opendaoc.sqlite3.db");
+        _stopped = true;
+        // The world database's ServerProperty table: Key is the primary key and ServerProperty_ID is unique.
+        Exec("""
+            CREATE TABLE ServerProperty (Category TEXT NOT NULL, `Key` TEXT NOT NULL PRIMARY KEY, Description TEXT NOT NULL,
+                DefaultValue TEXT NOT NULL, Value TEXT NOT NULL, LastTimeRowUpdated TEXT, ServerProperty_ID TEXT NOT NULL UNIQUE);
+            INSERT INTO ServerProperty VALUES ('rates', 'xp_rate', 'flat', '1', '1', '', '');
+            """);
+    }
+
+    [TearDown] public void Cleanup()
+    {
+        SQLiteConnection.ClearAllPools();
+        if (Directory.Exists(_folder)) Directory.Delete(_folder, true);
+    }
+
+    private void Exec(string sql)
+    {
+        using var c = new SQLiteConnection($"Data Source={_database};Pooling=False");
+        c.Open();
+        using var command = c.CreateCommand();
+        command.CommandText = sql;
+        command.ExecuteNonQuery();
+    }
+
+    private Dictionary<string, string> Rows()
+    {
+        using var c = new SQLiteConnection($"Data Source={_database};Pooling=False");
+        c.Open();
+        using var command = c.CreateCommand();
+        command.CommandText = "SELECT `Key`, Value FROM ServerProperty";
+        using var reader = command.ExecuteReader();
+        var rows = new Dictionary<string, string>();
+        while (reader.Read()) rows[reader.GetString(0)] = reader.GetString(1);
+        return rows;
+    }
+
+    private static readonly SocialExpansionSettings AllOn = new()
+    {
+        BotGuilds = true, GuildSharePercent = 60, GuildMinLevel = 10, Personalities = true, Voices = true,
+        GuildAlliances = false, PlayerXpByLevel = SocialExpansionSettings.SuggestedPlayerXp,
+        BotXpByLevel = SocialExpansionSettings.SuggestedBotXp,
+        LivingMemory = true, LivingGrats = true, LivingFirsts = true, LivingDeath = true, LivingAlarms = true,
+        LivingNemesis = true, ScheduleMode = "clock", LivingBreaks = true, LivingBodyLanguage = true, LivingBeggars = true,
+        LivingDeeds = true, LivingStorylines = true, LivingCharacters = true, LivingRumours = true,
+        LivingHolidays = true, LivingLeeroy = true,
+    };
+
+    [Test] public void NoRowsMeansTheServerDefaults()
+    {
+        var problems = new List<string>();
+        Assert.That(SocialExpansionSettings.Load(_database, problems), Is.EqualTo(SocialExpansionSettings.Defaults));
+        Assert.That(problems, Is.Empty);
+        // Since Beta 1.1 (the talking update) the chat-only parts are on: voices, memory, grats, and the beggars. The rest stays off.
+        Assert.That(SocialExpansionSettings.Defaults.Voices && SocialExpansionSettings.Defaults.LivingMemory &&
+                    SocialExpansionSettings.Defaults.LivingGrats && SocialExpansionSettings.Defaults.LivingBeggars, Is.True);
+        // True 1.65 edition: personalities are on too (the voices are chosen by them), as the server's own default.
+        Assert.That(SocialExpansionSettings.Defaults.Personalities, Is.True);
+        Assert.That(SocialExpansionSettings.Defaults.BotGuilds || SocialExpansionSettings.Defaults.LivingDeath ||
+                    SocialExpansionSettings.Defaults.LivingBreaks, Is.False);
+        Assert.That(SocialExpansionSettings.Defaults.PlayerXpByLevel + SocialExpansionSettings.Defaults.BotXpByLevel, Is.Empty);
+    }
+
+    [Test] public void RecommendedTurnsThisEditionsPartsOnAndKeepsThe165Rules()
+    {
+        // True 1.65 edition (owner 2026-11-14): Setup's first install turns on every talk and server-life part this
+        // edition has; what clashes with the 1.65 rules (power rate, XP by level, schedules) and what it doesn't carry stays
+        // at the server's default.
+        var r = SocialExpansionSettings.Recommended;
+        var stored = r.ToStoredValues();
+        string[] parts = ["bot_personalities_enabled", "bot_voices_enabled", "bot_voices_debates", "bot_living_memory", "bot_living_grats",
+            "bot_living_firsts", "bot_living_death", "bot_living_alarms", "bot_living_nemesis", "bot_living_beggars", "bot_living_deeds",
+            "bot_living_storylines", "bot_living_characters", "bot_living_rumours", "bot_living_holidays"];
+        Assert.That(parts.Where(key => stored[key] != "True"), Is.Empty);
+        Assert.That((r.BotGuilds, r.ScheduleMode, r.LivingBreaks, r.LivingBodyLanguage), Is.EqualTo((false, "off", false, false)));
+        Assert.That(r.PlayerXpByLevel + r.BotXpByLevel, Is.Empty);
+        Assert.That((r.ManaRegenModifier, r.ManaHalvedBelowHalf), Is.EqualTo((1.0, true)), "the 1.65 rate");
+        Assert.That(r.Validate(), Is.Null);
+        r.Save(_database, null, () => true);
+        Assert.That(Rows().Keys.Intersect(SocialExpansionSettings.NotInThisEdition), Is.Empty, "nothing this edition doesn't carry is written");
+        var problems = new List<string>();
+        Assert.That(SocialExpansionSettings.Load(_database, problems), Is.EqualTo(r));
+        Assert.That(problems, Is.Empty);
+    }
+
+    [Test] public void SaveWritesWhatTheServerReadsAndLoadsItBack()
+    {
+        AllOn.Save(_database, null, () => _stopped);
+        var rows = Rows();
+        // True 1.65 edition: guilds, XP by level, schedules, breaks and body language are not written at all.
+        foreach (string hidden in SocialExpansionSettings.NotInThisEdition)
+            Assert.That(rows.ContainsKey(hidden), Is.False, hidden + " is not written in this edition");
+        Assert.That(rows["bot_personalities_enabled"], Is.EqualTo("True"));
+        Assert.That(rows["xp_rate"], Is.EqualTo("1"), "the flat rate is not touched");
+        Assert.That(rows["bot_living_memory"], Is.EqualTo("True"));
+        Assert.That(rows["bot_living_beggars"], Is.EqualTo("True"));
+        Assert.That(rows["bot_living_deeds"] + rows["bot_living_storylines"] + rows["bot_living_characters"] + rows["bot_living_rumours"],
+            Is.EqualTo("TrueTrueTrueTrue"));
+        var problems = new List<string>();
+        var d = SocialExpansionSettings.Defaults;
+        Assert.That(SocialExpansionSettings.Load(_database, problems), Is.EqualTo(AllOn with
+        {
+            BotGuilds = d.BotGuilds, GuildSharePercent = d.GuildSharePercent, GuildMinLevel = d.GuildMinLevel, GuildAlliances = d.GuildAlliances,
+            PlayerXpByLevel = "", BotXpByLevel = "", ScheduleMode = "off", LivingBreaks = false, LivingBodyLanguage = false,
+            LivingLeeroy = d.LivingLeeroy,
+        }), "what this edition doesn't carry reads back as the server's default");
+        Assert.That(problems, Is.Empty);
+    }
+
+    [Test] public void SaveOnlyWritesWhatChanged()
+    {
+        Exec("INSERT INTO ServerProperty VALUES ('guild', 'bot_guild_share', 'd', '', '0.655', '', 'bot_guild_share')");
+        var loaded = SocialExpansionSettings.Load(_database, new List<string>());
+        Assert.That(loaded.GuildSharePercent, Is.EqualTo(66));
+        (loaded with { Personalities = true }).Save(_database, loaded, () => _stopped);
+        var rows = Rows();
+        Assert.That(rows["bot_guild_share"], Is.EqualTo("0.655"), "an untouched setting keeps its exact value");
+        Assert.That(rows["bot_personalities_enabled"], Is.EqualTo("True"));
+        Assert.That(rows.ContainsKey("bot_guilds_enabled"), Is.False);
+    }
+
+    [Test] public void TheChatRateIsSavedReadAndChecked()
+    {
+        // Beta 1.1.2: bot_voices_chat_rate in the tab; 2 by default (owner 2026-11-04, after the playtest).
+        Assert.That(SocialExpansionSettings.Defaults.ChatRate, Is.EqualTo(2.0));
+        Assert.That(SocialExpansionSettings.ChatRateDescription, Does.Contain("2 (the default)").And.Not.Contain("quiet"));
+        (SocialExpansionSettings.Defaults with { ChatRate = 2.5 }).Save(_database, null, () => _stopped);
+        Assert.That(Rows()["bot_voices_chat_rate"], Is.EqualTo("2.5"));
+        var problems = new List<string>();
+        Assert.That(SocialExpansionSettings.Load(_database, problems).ChatRate, Is.EqualTo(2.5));
+        Assert.That(problems, Is.Empty);
+        var bad = new Dictionary<string, string?> { ["bot_voices_chat_rate"] = "7" };
+        var keys = new HashSet<string>();
+        Assert.That(SocialExpansionSettings.FromStoredValues(bad, problems, keys).ChatRate, Is.EqualTo(3.0));
+        Assert.That(keys, Does.Contain("bot_voices_chat_rate"));
+        Assert.That(SocialExpansionSettings.FromStoredValues(new Dictionary<string, string?> { ["bot_voices_chat_rate"] = "lots" }, problems).ChatRate,
+            Is.EqualTo(0.0), "what the server reads");
+    }
+
+    [Test] public void UnreadableValuesAreReportedAndShownAsDefaults()
+    {
+        Exec("""
+            INSERT INTO ServerProperty VALUES ('guild', 'bot_guilds_enabled', 'd', '', 'maybe', '', 'bot_guilds_enabled');
+            INSERT INTO ServerProperty VALUES ('guild', 'bot_guild_share', 'd', '', '1.5', '', 'bot_guild_share');
+            INSERT INTO ServerProperty VALUES ('rates', 'bot_xp_rate_by_level', 'd', '', '50-1:2', '', 'bot_xp_rate_by_level');
+            """);
+        var problems = new List<string>();
+        var keys = new HashSet<string>();
+        var loaded = SocialExpansionSettings.Load(_database, problems, keys);
+        Assert.That(loaded.BotGuilds, Is.False, "the server reads an unreadable bool as False");
+        Assert.That(loaded.GuildSharePercent, Is.EqualTo(100), "a share above 1 shows as 100%");
+        Assert.That(problems, Has.Count.EqualTo(2));
+        Assert.That(keys, Is.EquivalentTo(new[] { "bot_guilds_enabled", "bot_guild_share" }));
+        Assert.That(loaded.BotXpByLevel, Is.EqualTo("50-1:2"), "an invalid range setting is kept so its error can be shown");
+        Assert.That(loaded.Validate(), Does.Contain("ends before it starts"));
+    }
+
+    [Test] public void LivingServerScheduleIsReadLikeTheServerAndAllOffSwitchesEveryPartOff()
+    {
+        Exec("INSERT INTO ServerProperty VALUES ('bots', 'bot_schedule_mode', 'd', '', 'sometimes', '', 'bot_schedule_mode')");
+        var problems = new List<string>();
+        var keys = new HashSet<string>();
+        var loaded = SocialExpansionSettings.Load(_database, problems, keys);
+        Assert.That(loaded.ScheduleMode, Is.EqualTo("off"), "the server reads an unknown mode as off");
+        Assert.That(keys, Is.EquivalentTo(new[] { "bot_schedule_mode" }));
+        Assert.That(AllOn with { ScheduleMode = "weekly" }, Has.Property("IsAllOff").False);
+        Assert.That((AllOn with { ScheduleMode = "weekly" }).Validate(), Does.Contain("off, session or clock"));
+        var off = AllOn.AllOff();
+        Assert.That(off.AnyLiving, Is.False);
+        Assert.That(off.IsAllOff, Is.True);
+        Assert.That((SocialExpansionSettings.Defaults with { ScheduleMode = "session" }).IsAllOff, Is.False);
+        Assert.That((SocialExpansionSettings.Defaults with { LivingBodyLanguage = true }).IsAllOff, Is.False);
+        Assert.That(off.LivingBodyLanguage, Is.False);
+        Assert.That(off.LivingBeggars || off.LivingDeeds || off.LivingStorylines || off.LivingCharacters || off.LivingRumours, Is.False);
+        Assert.That(off.LivingHolidays || off.LivingLeeroy, Is.False);
+        Assert.That((SocialExpansionSettings.Defaults.AllOff() with { LivingBeggars = true }).IsAllOff, Is.False);
+    }
+
+    [Test] public void NothingIsWrittenWhileTheServerRunsOrWithInvalidRanges()
+    {
+        _stopped = false;
+        Assert.Throws<InvalidOperationException>(() => AllOn.Save(_database, null, () => _stopped));
+        _stopped = true;
+        Assert.Throws<InvalidOperationException>(() => (AllOn with { PlayerXpByLevel = "1-19:3;10-20:2" }).Save(_database, null, () => _stopped));
+        Assert.Throws<InvalidOperationException>(() => (AllOn with { BotXpByLevel = "1-50:0" }).Save(_database, null, () => _stopped));
+        Assert.That(Rows().Keys, Is.EquivalentTo(new[] { "xp_rate" }));
+    }
+
+    [Test] public void RepairRewritesOnlyTheBadRowsAndAllOffKeepsTheChoices()
+    {
+        Exec("""
+            INSERT INTO ServerProperty VALUES ('guild', 'bot_guilds_enabled', 'd', '', 'maybe', '', 'bot_guilds_enabled');
+            INSERT INTO ServerProperty VALUES ('guild', 'bot_guild_share', 'd', '', '0.655', '', 'bot_guild_share');
+            """);
+        var keys = new HashSet<string>();
+        var loaded = SocialExpansionSettings.Load(_database, new List<string>(), keys);
+        loaded.Save(_database, loaded, () => _stopped, keys);
+        var rows = Rows();
+        Assert.That(rows["bot_guilds_enabled"], Is.EqualTo("maybe"), "True 1.65 edition: a row it doesn't carry is left alone, even unreadable");
+        Assert.That(rows["bot_guild_share"], Is.EqualTo("0.655"), "a readable row is not rewritten by a repair");
+        Assert.That(rows.ContainsKey("bot_personalities_enabled"), Is.False);
+
+        var custom = AllOn with { GuildSharePercent = 40, GuildMinLevel = 20, GuildClaims = false };
+        var off = custom.AllOff();
+        Assert.That(off.IsAllOff, Is.True);
+        Assert.That((off.GuildSharePercent, off.GuildMinLevel, off.GuildClaims, off.Debates), Is.EqualTo((40, 20, false, true)),
+            "ALL OFF switches the features off but keeps the player's share, level and parts");
+    }
+
+    [Test] public void AFailedLoadNeverSavesOverTheRealSettings()
+    {
+        Exec("DROP TABLE ServerProperty");
+        var type = Assembly.Load("OfflineDAoC").GetType("OfflineDaoc.Launcher.SocialExpansionSettingsControl")!;
+        using var panel = (Control)Activator.CreateInstance(type, _database, (Func<bool>)(() => _stopped))!;
+        var save = (Button)type.GetField("_save", Hidden)!.GetValue(panel)!;
+        ((CheckBox)type.GetField("_guilds", Hidden)!.GetValue(panel)!).Checked = true;
+        Assert.That(save.Enabled, Is.False, "nothing can be saved over settings that couldn't be read");
+        Assert.That(type.GetProperty("HasUnsavedChanges")!.GetValue(panel), Is.False, "the start guard isn't blocked by a failed read");
+        Exec("""
+            CREATE TABLE ServerProperty (Category TEXT NOT NULL, `Key` TEXT NOT NULL PRIMARY KEY, Description TEXT NOT NULL,
+                DefaultValue TEXT NOT NULL, Value TEXT NOT NULL, LastTimeRowUpdated TEXT, ServerProperty_ID TEXT NOT NULL UNIQUE);
+            INSERT INTO ServerProperty VALUES ('guild', 'bot_personalities_enabled', 'd', '', 'True', '', 'bot_personalities_enabled');
+            """);
+        type.GetMethod("SaveSettings", Hidden)!.Invoke(panel, null);
+        Assert.That(Rows().Keys, Is.EquivalentTo(new[] { "bot_personalities_enabled" }), "SaveSettings refuses after a failed read");
+        ((Button)type.GetField("_undo", Hidden)!.GetValue(panel)!).PerformClick();
+        Assert.That(((CheckBox)type.GetField("_personalities", Hidden)!.GetValue(panel)!).Checked, Is.True, "UNDO EDITS reads them again");
+    }
+
+    /// <summary>Living Server 1.1.2 (owner 2026-11-03, a r/daoc report): bots in your guild, and the power regeneration rate.</summary>
+    [Test] public void PowerRegenAndBotsInYourGuildAreSavedAndReadLikeTheServer()
+    {
+        // True 1.65 edition: the 1.65 rate is the default (1, halved below half power); bots in your guild aren't carried.
+        var d = SocialExpansionSettings.Defaults;
+        Assert.That((d.ManaRegenModifier, d.ManaHalvedBelowHalf), Is.EqualTo((1.0, true)));
+        var classic = d with { ManaRegenModifier = 1.5, ManaHalvedBelowHalf = false };
+        classic.Save(_database, d, () => _stopped);
+        var rows = Rows();
+        Assert.That((rows["mana_regen_amount_modifier"], rows["mana_regen_amount_halved_below_50_percent"]), Is.EqualTo(("1.5", "False")));
+        Assert.That(rows.ContainsKey("bot_player_guild_economy"), Is.False);
+        var problems = new List<string>();
+        Assert.That(SocialExpansionSettings.Load(_database, problems), Is.EqualTo(classic));
+        Assert.That(problems, Is.Empty);
+        Assert.That(classic.AllOff() is { ManaRegenModifier: 1.5, ManaHalvedBelowHalf: false }, Is.True, "ALL OFF leaves the rates alone");
+
+        (classic with { ManaRegenModifier = 1.75 }).Save(_database, classic, () => _stopped);
+        Assert.That(Rows()["mana_regen_amount_modifier"], Is.EqualTo("1.75"));
+        Assert.That((d with { ManaRegenModifier = 0.1 }).Validate(), Does.Contain("power regeneration"));
+        Assert.That((d with { ManaRegenModifier = 11 }).Validate(), Does.Contain("power regeneration"));
+
+        Exec("UPDATE ServerProperty SET Value='fast' WHERE `Key`='mana_regen_amount_modifier'");
+        var keys = new HashSet<string>();
+        problems.Clear();
+        var bad = SocialExpansionSettings.Load(_database, problems, keys);
+        Assert.That(keys, Is.EquivalentTo(new[] { "mana_regen_amount_modifier" }));
+        Assert.That(bad.ManaRegenModifier, Is.EqualTo(SocialExpansionSettings.MinManaRegenModifier));
+        Exec("UPDATE ServerProperty SET Value='25' WHERE `Key`='mana_regen_amount_modifier'");
+        Assert.That(SocialExpansionSettings.Load(_database, new List<string>()).ManaRegenModifier, Is.EqualTo(SocialExpansionSettings.MaxManaRegenModifier));
+
+        // The tab shows and saves them.
+        var type = Assembly.Load("OfflineDAoC").GetType("OfflineDaoc.Launcher.SocialExpansionSettingsControl")!;
+        Exec("UPDATE ServerProperty SET Value='1.5' WHERE `Key`='mana_regen_amount_modifier'");
+        using var panel = (Control)Activator.CreateInstance(type, _database, (Func<bool>)(() => _stopped))!;
+        var rate = (NumericUpDown)type.GetField("_manaRate", Hidden)!.GetValue(panel)!;
+        var halved = (CheckBox)type.GetField("_manaHalved", Hidden)!.GetValue(panel)!;
+        var inYourGuild = (CheckBox)type.GetField("_playerGuildEconomy", Hidden)!.GetValue(panel)!;
+        Assert.That((rate.Value, halved.Checked, inYourGuild.Checked), Is.EqualTo((1.5m, true, false)));
+        rate.Value = 2m;
+        halved.Checked = false;
+        inYourGuild.Checked = true;
+        type.GetMethod("SaveSettings", Hidden)!.Invoke(panel, null);
+        rows = Rows();
+        Assert.That((rows["bot_player_guild_economy"], rows["mana_regen_amount_modifier"], rows["mana_regen_amount_halved_below_50_percent"]),
+            Is.EqualTo(("True", "2", "False")));
+    }
+
+    /// <summary>The keys and defaults here must be the server's (ServerProperties.cs), or the tab would show the wrong state.</summary>
+    [Test] public void KeysAndDefaultsMatchTheServer()
+    {
+        string? dir = TestContext.CurrentContext.TestDirectory;
+        const string properties = "development-source/server/GameServer/serverproperty/ServerProperties.cs";
+        while (dir != null && !File.Exists(Path.Combine(dir, properties)))
+            dir = Path.GetDirectoryName(dir);
+        if (dir == null) Assert.Ignore("Server source not found beside the tests.");
+        string source = File.ReadAllText(Path.Combine(dir!, properties));
+        var defaults = SocialExpansionSettings.Defaults.ToStoredValues();
+        foreach (var (key, category, _) in typeof(SocialExpansionSettings)
+                     .GetField("Settings", BindingFlags.Static | BindingFlags.NonPublic)!
+                     .GetValue(null) as (string Key, string Category, string Description)[] ?? [])
+        {
+            // True 1.65 edition: a setting it doesn't carry may not be a server setting here at all (it is never written).
+            if (SocialExpansionSettings.NotInThisEdition.Contains(key) && !source.Contains($"\"{key}\""))
+                continue;
+            var match = Regex.Match(source, $"\\[ServerProperty\\(\"(\\w+)\", \"{key}\", \"(?:[^\"\\\\]|\\\\.)*\", ([^)]*)\\)\\]");
+            Assert.That(match.Success, Is.True, key + " is not a server setting");
+            Assert.That(match.Groups[1].Value, Is.EqualTo(category), key + " category");
+            string serverDefault = match.Groups[2].Value.Trim().Trim('"');
+            string expected = serverDefault switch
+            {
+                "true" => "True",
+                "false" => "False",
+                _ when double.TryParse(serverDefault, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double d)
+                    => d.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
+                _ => serverDefault,
+            };
+            Assert.That(defaults[key], Is.EqualTo(expected), key + " default");
+        }
+    }
+
+    [Test] public void TheTabFollowsTheServerStateAndDependencies()
+    {
+        var type = Assembly.Load("OfflineDAoC").GetType("OfflineDaoc.Launcher.SocialExpansionSettingsControl")!;
+        using var panel = (Control)Activator.CreateInstance(type, _database, (Func<bool>)(() => _stopped))!;
+        T Field<T>(string name) => (T)type.GetField(name, Hidden)!.GetValue(panel)!;
+        void Call(string name) => type.GetMethod(name, Hidden | BindingFlags.Public)!.Invoke(panel, null);
+
+        var voices = Field<CheckBox>("_voices");
+        var debates = Field<CheckBox>("_debates");
+        var firsts = Field<CheckBox>("_firsts");
+        var save = Field<Button>("_save");
+        Color muted = Color.FromArgb(166, 154, 128), parchment = Color.FromArgb(215, 199, 157);
+        // Voices are on by default, so debates start bright and dim when voices are switched off.
+        Assert.That(voices.Checked, Is.True, "bot voices are on by default");
+        Assert.That(debates.ForeColor, Is.EqualTo(parchment));
+        Assert.That(save.Enabled, Is.False, "nothing to save yet");
+        voices.Checked = false;
+        Assert.That(debates.ForeColor, Is.EqualTo(muted), "debates are dimmed until voices are on");
+        voices.Checked = true;
+        firsts.Checked = true;
+        Assert.That(debates.ForeColor, Is.EqualTo(parchment));
+        Assert.That(save.Enabled, Is.True);
+        Assert.That(new[] { voices, debates, firsts }.All(box => box.Enabled), Is.True, "switches are never disabled (unreadable on the dark theme)");
+
+        _stopped = false;
+        Call("UpdateState");
+        Assert.That(save.Enabled, Is.False, "nothing is saved while the server runs");
+        Assert.That(Field<Label>("_status").Text, Does.StartWith("SERVER RUNNING"));
+        Call("SaveSettings");
+        Assert.That(Rows().ContainsKey("bot_living_firsts"), Is.False);
+
+        _stopped = true;
+        Call("UpdateState");
+        Call("SaveSettings");
+        var rows = Rows();
+        Assert.That(rows["bot_living_firsts"], Is.EqualTo("True"));
+        // Voices were switched off and on again: still the default, so nothing is written for them.
+        Assert.That(rows.ContainsKey("bot_voices_enabled"), Is.False);
+        Assert.That(type.GetProperty("HasUnsavedChanges")!.GetValue(panel), Is.False);
+
+        Field<Button>("_allOff").PerformClick();
+        Call("SaveSettings");
+        rows = Rows();
+        Assert.That(rows["bot_living_firsts"], Is.EqualTo("False"));
+        Assert.That(rows["bot_voices_enabled"], Is.EqualTo("False"), "ALL OFF switches the defaults off too");
+        Assert.That(rows.Keys.Intersect(SocialExpansionSettings.NotInThisEdition), Is.Empty, "ALL OFF writes nothing this edition doesn't carry");
+    }
+
+    /// <summary>
+    /// Renders the real launcher (Options, Bot Goals Setting and Living Server tabs) and the tab in several
+    /// states to PNG files in TestResults' work folder (ui-preview\), so the look can be checked against the
+    /// other settings screens. CI uploads them as an artifact.
+    /// </summary>
+    [Test] public void RendersPreviewsBesideTheOtherSettingsTabs()
+    {
+        string folder = Path.Combine(TestContext.CurrentContext.WorkDirectory, "ui-preview");
+        Directory.CreateDirectory(folder);
+        var launcher = Assembly.Load("OfflineDAoC");
+
+        var form = (Form)Activator.CreateInstance(launcher.GetType("OfflineDaoc.Launcher.MainForm")!)!;
+        try
+        {
+            form.ShowInTaskbar = false;
+            form.StartPosition = FormStartPosition.Manual;
+            form.Location = new Point(-20_000, -20_000);
+            form.Show();
+            Application.DoEvents();
+            TabControl tabs = All(form).OfType<TabControl>().First(t => t.TabPages.Cast<TabPage>().Any(p => p.Text == "Living Server"));
+            foreach (var (tab, file) in new[] { ("Options", "1-options.png"), ("Bot Goals Setting", "2-bot-goals.png"), ("Living Server", "3-living-server-in-launcher.png") })
+            {
+                tabs.SelectedTab = tabs.TabPages.Cast<TabPage>().First(p => p.Text == tab);
+                Application.DoEvents();
+                using var image = new Bitmap(form.Width, form.Height);
+                form.DrawToBitmap(image, new Rectangle(Point.Empty, image.Size));
+                image.Save(Path.Combine(folder, file));
+            }
+        }
+        finally
+        {
+            DisposeWhenSettled(form, TimeSpan.FromSeconds(30));
+        }
+
+        var type = launcher.GetType("OfflineDaoc.Launcher.SocialExpansionSettingsControl")!;
+        void Render(string file, Action<Control> setup, bool bottom = false, int scroll = 0)
+        {
+            using var host = new Form { ShowInTaskbar = false, StartPosition = FormStartPosition.Manual, Location = new Point(-20_000, -20_000),
+                ClientSize = new Size(1180, 1060), BackColor = Color.FromArgb(35, 31, 26) };
+            var panel = (Control)Activator.CreateInstance(type, _database, (Func<bool>)(() => _stopped))!;
+            host.Controls.Add(panel);
+            host.Show();
+            setup(panel);
+            type.GetMethod("UpdateState")!.Invoke(panel, null);
+            Application.DoEvents();
+            if (scroll > 0)
+            {
+                var scroller = panel.Controls.OfType<Panel>().First(c => c.AutoScroll);
+                scroller.AutoScrollPosition = new Point(0, scroll);
+                Application.DoEvents();
+            }
+            if (bottom)
+            {
+                // The CI desktop is small: show the XP card by scrolling the cards to the end.
+                var scroller = panel.Controls.OfType<Panel>().First(c => c.AutoScroll);
+                scroller.AutoScrollPosition = new Point(0, 10_000);
+                Application.DoEvents();
+            }
+            using var image = new Bitmap(host.ClientSize.Width, host.ClientSize.Height);
+            panel.DrawToBitmap(image, new Rectangle(Point.Empty, image.Size));
+            image.Save(Path.Combine(folder, file));
+        }
+        T F<T>(Control panel, string name) => (T)type.GetField(name, Hidden)!.GetValue(panel)!;
+        void Xp(Control panel, string row, int mode, string? text = null)
+        {
+            var xp = type.GetField(row, Hidden)!.GetValue(panel)!;
+            ((ComboBox)xp.GetType().GetField("_mode", Hidden)!.GetValue(xp)!).SelectedIndex = mode;
+            if (text != null) ((TextBox)xp.GetType().GetField("_text", Hidden)!.GetValue(xp)!).Text = text;
+        }
+
+        Render("4-tab-all-off.png", _ => { });
+        Render("5-tab-editing.png", panel =>
+        {
+            F<CheckBox>(panel, "_guilds").Checked = true;
+            F<CheckBox>(panel, "_voices").Checked = true;
+            F<CheckBox>(panel, "_personalities").Checked = true;
+            Xp(panel, "_playerXp", 1);
+            Xp(panel, "_botXp", 2, "1-19:1.5;15-34:2.5");
+        });
+        Render("5b-tab-editing-xp.png", panel =>
+        {
+            Xp(panel, "_playerXp", 1);
+            Xp(panel, "_botXp", 2, "1-19:1.5;15-34:2.5");
+        }, bottom: true);
+        Render("5c-tab-editing-living.png", panel =>
+        {
+            F<CheckBox>(panel, "_memory").Checked = true;
+            F<CheckBox>(panel, "_death").Checked = true;
+            F<ComboBox>(panel, "_schedule").SelectedIndex = 2;
+        }, scroll: 600);
+        AllOn.Save(_database, null, () => true);
+        Render("6-tab-saved-on.png", _ => { });
+        Render("6c-tab-saved-on-living.png", _ => { }, scroll: 600);
+        Render("6b-tab-saved-on-xp.png", _ => { }, bottom: true);
+        _stopped = false;
+        Render("7-tab-server-running.png", _ => { });
+        TestContext.Progress.WriteLine("UI previews: " + folder);
+    }
+
+    /// <summary>
+    /// Disposes a shown launcher window once it has settled. When shown, the launcher starts its own work (the dashboard
+    /// and Realm Exchange reads, then the update check), and Dispose throws "Dispose() cannot be called while doing
+    /// CreateHandle()" when it meets a control whose window handle is still being created (CI, 2026-11-05, twice; a
+    /// re-run passed). So the test pumps the message loop until that start-up work has reached its timers and no control
+    /// is creating its handle, and if Dispose still meets one, pumps again and retries, naming the control in the test
+    /// log. Only the test waits; the launcher is unchanged.
+    /// </summary>
+    private static void DisposeWhenSettled(Form form, TimeSpan timeout)
+    {
+        DateTime until = DateTime.UtcNow + timeout;
+        void Pump() { Application.DoEvents(); Thread.Sleep(20); }
+        // The launcher starts its auto-refresh timer once the Shown handler's reads are done (MainForm's Shown).
+        var autoRefresh = form.GetType().GetField("_autoRefresh", Hidden)?.GetValue(form) as System.Windows.Forms.Timer;
+        DateTime readsUntil = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (autoRefresh is { Enabled: false } && DateTime.UtcNow < readsUntil) Pump();
+        for (int i = 0; i < 5; i++) Pump();
+        for (int attempt = 1; ; attempt++)
+        {
+            while (CreatingHandle(form) != null && DateTime.UtcNow < until) Pump();
+            try
+            {
+                form.Dispose();
+                return;
+            }
+            catch (InvalidOperationException e) when (e.Message.Contains("CreateHandle") && attempt < 20 && DateTime.UtcNow < until)
+            {
+                Control busy = CreatingHandle(form);
+                TestContext.Progress.WriteLine($"Dispose met a control still creating its handle ({(busy == null ? "not found" : busy.GetType().Name + " '" + busy.Name + "'")}); " +
+                                               $"pumping and trying again (attempt {attempt}).");
+                for (int i = 0; i < 10; i++) Pump();
+            }
+        }
+    }
+
+    // Control.GetState(States.CreatingHandle), read by reflection: null when this WinForms has no such state to read.
+    private static readonly MethodInfo GetStateMethod = typeof(Control).GetMethods(Hidden)
+        .FirstOrDefault(m => m.Name == "GetState" && m.GetParameters() is [{ ParameterType.IsEnum: true }] && m.ReturnType == typeof(bool));
+    private static readonly object CreatingHandleState = GetStateMethod != null &&
+        Enum.TryParse(GetStateMethod.GetParameters()[0].ParameterType, "CreatingHandle", out object state) ? state : null;
+
+    /// <summary>The first control under root (root included) whose window handle is being created now, or null.</summary>
+    private static Control CreatingHandle(Control root)
+    {
+        if (CreatingHandleState == null) return null;
+        try
+        {
+            return new[] { root }.Concat(All(root)).FirstOrDefault(c => (bool)GetStateMethod.Invoke(c, [CreatingHandleState])!);
+        }
+        catch (InvalidOperationException)
+        {
+            return null; // the control tree changed while it was read (another thread); the retry still covers it
+        }
+    }
+
+    private static IEnumerable<Control> All(Control root)
+    {
+        foreach (Control child in root.Controls)
+        {
+            yield return child;
+            foreach (Control nested in All(child)) yield return nested;
+        }
+    }
+}

@@ -3848,6 +3848,12 @@ namespace DOL.GS
             }
         }
 
+        public override void ForgetDeparted()
+        {
+            base.ForgetDeparted();
+            (Brain as BotBrain)?.ForgetDeparted();
+        }
+
         public override void Delete()
         {
             if (ObjectState is eObjectState.Deleted)

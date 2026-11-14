@@ -98,6 +98,8 @@ parts that change what a bot does (firsts, death, alarms, nemesis) are off until
 | `xp_rate_by_level`, `bot_xp_rate_by_level` | empty | XP rates by level range; empty keeps True 1.65's rates. |
 | `quest_xp_by_level` | off | Quest XP follows `xp_rate_by_level`. |
 | `bot_guilds_enabled` and the other `bot_guild_*` | off | Gamebots found and run their own realm guilds (below). |
+| `bot_epic_encounter_tactics` | off | Bot raids play Living Server's tactics for eight epic encounters, on top of True 1.65's boss rules. |
+| `epic_original_mechanics` | empty | Original OpenDAoC boss rules to turn back on, by name or `all` (17 switches; each makes its boss harder). |
 | `bot_chat_period_channels` | on | True 1.65's own switch: bot talk on the period channels (below). Off: everything on `<Faction>`. |
 
 The launcher's **Living Server** tab sets all of these (with the server stopped); its suggested settings turn on the
@@ -130,7 +132,7 @@ started and nowhere else. Bots answering a GM's /faction line answer on /faction
   would change how True 1.65's gamebots hunt, so they wait for a play test.
 
 **Later parts of Living Server:**
-- Epic encounters: raid tactics and restored boss mechanics (True 1.65 has its own boss work on the same bosses).
+- The Epic Special Forces and Living Server's quest journal, epic chains and quest fixes (in progress).
 - From Living Server 1.2, once it is released: bot-led groups, RvR perception, the lore, raid skill.
 - The route fixes and the diagnostics.
 

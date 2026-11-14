@@ -61,6 +61,13 @@ public sealed record SocialExpansionSettings
     public bool IncomingFireReaction { get; init; }
     /// <summary>New gamebots get names in the style of 2003's servers (bot_era_names). True 1.65 edition: off by default.</summary>
     public bool EraNames { get; init; }
+    /// <summary>Living Server's raid tactics for eight epic encounters (bot_epic_encounter_tactics). Off by default.</summary>
+    public bool EpicTactics { get; init; }
+    /// <summary>
+    /// Living Server's restored original boss mechanics (epic_original_mechanics): "" (off, the default), "all", or the
+    /// switch names a player wrote by hand, which the tab keeps as written.
+    /// </summary>
+    public string OriginalBossMechanics { get; init; } = "";
     /// <summary>
     /// Power regeneration multiplier for players and bots alike (Living Server 1.1.2: 1.5; 1 is the classic pre-1.87 rate,
     /// which patch 1.87 doubled).
@@ -140,6 +147,8 @@ public sealed record SocialExpansionSettings
         ("bot_era_names", "bots", "Living Server, off by default in True 1.65: new gamebots get names in the style of 2003's servers (three in four made-up, compound, joke or first names, some xX and number names; the rest lore names) instead of True 1.65's race-styled names. Bots that already have a name keep it."),
         ("xp_rate_by_level", "rates", "Living Server, off by default: an XP rate by level range for real player characters, for example 1-19:3;20-34:5;35-50:12. Inside a listed range its rate replaces xp_rate (the launcher's Player XP rate); other levels keep xp_rate. In RvR zones the RvR rate still multiplies it. Empty (the default) or an invalid value keeps the flat xp_rate."),
         ("bot_xp_rate_by_level", "rates", "Living Server, off by default: an XP rate by level range for autonomous gamebots, for example 1-19:1.5;20-34:2.5;35-50:6. Inside a listed range its rate replaces bot_xp_rate (the launcher's gamebot XP rate); other levels keep bot_xp_rate. In RvR zones the RvR rate still multiplies it. Empty (the default) or an invalid value keeps the flat bot_xp_rate. Hired companions follow xp_rate_by_level, as they follow the Player XP rate."),
+        ("bot_epic_encounter_tactics", "bots", "Living Server, off by default in True 1.65: gamebot raids play Living Server's tactics for eight epic encounters (Scurceol Hyrde's orbs, Orshom's Fire, Aidon's illusions, Black Lady and the Ancient Black Oak, Nosdoden's waves, Xanxicar's stomp) on top of True 1.65's own boss rules. Off: True 1.65's boss rules only."),
+        ("epic_original_mechanics", "world", "Living Server, empty (off) by default in True 1.65: original OpenDAoC boss mechanics to turn back on, by switch name, comma separated (AllowHorsemenTetherHeal, AllowFunusWeaponPuzzle, AllowSacristanPatrol, AllowSoulReckonerFullShield, AllowSoulReckonerSmallRoom, AllowAroonDamageOrder, AllowGalladoriaBridgeSpot, AllowFullFirePatches, AllowEarthmenderClassPuzzle, AllowEarthmendersPassive, AllowEarthmenderQuickReset, AllowEarthmenderMutualHeal, AllowBeathaHealsXaga, AllowFairyFlight, AllowGovannonFullHealth, AllowKvasirColdHeal, AllowTuscarTwinHeal), or all. Each makes its boss harder than True 1.65 has it. Read at server start."),
         ("quest_xp_by_level", "rates", "Living Server, off by default in True 1.65: quest experience follows xp_rate_by_level. When true and one of its ranges covers the player's level, the XP of data quests, reward quests and the battleground quests is multiplied by that level's rate, and one quest payment never pays more than one level. False: quest XP exactly as True 1.65 pays it."),
         ("mana_regen_amount_modifier", "rates", "Power regeneration multiplier for real players and gamebots alike. 1 is the classic rate before patch 1.87, which doubled it; 1.5 (the Living Server default) is a middle ground. Set in the launcher's Living Server tab."),
         ("mana_regen_amount_halved_below_50_percent", "rates", "Halve power regeneration below 50% power for list casters (the classic rule). Applies to real players and gamebots alike. Off by default in the Living Server; set in the launcher's Living Server tab."),
@@ -183,6 +192,8 @@ public sealed record SocialExpansionSettings
         ["bot_living_leeroy"] = Bool(LivingLeeroy),
         ["bot_incoming_fire_reaction"] = Bool(IncomingFireReaction),
         ["bot_era_names"] = Bool(EraNames),
+        ["bot_epic_encounter_tactics"] = Bool(EpicTactics),
+        ["epic_original_mechanics"] = OriginalBossMechanics.Trim(),
         ["xp_rate_by_level"] = PlayerXpByLevel.Trim(),
         ["bot_xp_rate_by_level"] = BotXpByLevel.Trim(),
         ["quest_xp_by_level"] = Bool(QuestXpByLevel),
@@ -325,6 +336,8 @@ public sealed record SocialExpansionSettings
             QuestXpByLevel = ReadBool("quest_xp_by_level", d.QuestXpByLevel),
             IncomingFireReaction = ReadBool("bot_incoming_fire_reaction", d.IncomingFireReaction),
             EraNames = ReadBool("bot_era_names", d.EraNames),
+            EpicTactics = ReadBool("bot_epic_encounter_tactics", d.EpicTactics),
+            OriginalBossMechanics = stored.TryGetValue("epic_original_mechanics", out string? mechanics) ? mechanics?.Trim() ?? "" : "",
             ManaRegenModifier = manaRate,
             ManaHalvedBelowHalf = ReadBool("mana_regen_amount_halved_below_50_percent", d.ManaHalvedBelowHalf),
         };
@@ -350,11 +363,12 @@ public sealed record SocialExpansionSettings
         LivingNemesis = false, ScheduleMode = "off", LivingBreaks = false, LivingBodyLanguage = false, LivingBeggars = false,
         LivingDeeds = false, LivingStorylines = false, LivingCharacters = false, LivingRumours = false,
         LivingHolidays = false, LivingLeeroy = false, QuestXpByLevel = false, IncomingFireReaction = false, EraNames = false,
+        EpicTactics = false, OriginalBossMechanics = "",
     };
 
     /// <summary>True when every feature and both XP ranges are off.</summary>
     public bool IsAllOff => !BotGuilds && !Personalities && !Voices && !AnyLiving && PlayerXpByLevel.Trim() == "" && BotXpByLevel.Trim() == "" &&
-                            !QuestXpByLevel && !IncomingFireReaction && !EraNames;
+                            !QuestXpByLevel && !IncomingFireReaction && !EraNames && !EpicTactics && OriginalBossMechanics.Trim() == "";
 
     /// <summary>Why these settings can't be saved, or null when they can.</summary>
     public string? Validate()

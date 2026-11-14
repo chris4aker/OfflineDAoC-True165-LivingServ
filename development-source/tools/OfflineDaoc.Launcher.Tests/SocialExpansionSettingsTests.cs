@@ -61,6 +61,7 @@ public class SocialExpansionSettingsTests
         LivingNemesis = true, ScheduleMode = "clock", LivingBreaks = true, LivingBodyLanguage = true, LivingBeggars = true,
         LivingDeeds = true, LivingStorylines = true, LivingCharacters = true, LivingRumours = true,
         LivingHolidays = true, LivingLeeroy = true, QuestXpByLevel = true, IncomingFireReaction = true, EraNames = true,
+        EpicTactics = true, OriginalBossMechanics = "all",
     };
 
     [Test] public void NoRowsMeansTheServerDefaults()
@@ -79,6 +80,7 @@ public class SocialExpansionSettingsTests
         // True 1.65 edition: what changes how the game plays is off until the player turns it on.
         var d = SocialExpansionSettings.Defaults;
         Assert.That((d.LivingLeeroy, d.QuestXpByLevel, d.IncomingFireReaction, d.EraNames), Is.EqualTo((false, false, false, false)));
+        Assert.That((d.EpicTactics, d.OriginalBossMechanics), Is.EqualTo((false, "")));
     }
 
     [Test] public void RecommendedTurnsThisEditionsPartsOnAndKeepsThe165Rules()
@@ -95,6 +97,7 @@ public class SocialExpansionSettingsTests
         Assert.That((r.BotGuilds, r.ScheduleMode, r.LivingBreaks, r.LivingBodyLanguage), Is.EqualTo((false, "off", false, false)));
         Assert.That(r.PlayerXpByLevel + r.BotXpByLevel, Is.Empty);
         Assert.That((r.QuestXpByLevel, r.IncomingFireReaction, r.EraNames, r.LivingLeeroy), Is.EqualTo((false, false, false, false)), "how the game plays stays True 1.65's");
+        Assert.That((r.EpicTactics, r.OriginalBossMechanics), Is.EqualTo((false, "")), "the bosses stay True 1.65's");
         Assert.That((r.ManaRegenModifier, r.ManaHalvedBelowHalf), Is.EqualTo((1.0, true)), "the 1.65 rate");
         Assert.That(r.Validate(), Is.Null);
         r.Save(_database, null, () => true);
@@ -116,6 +119,7 @@ public class SocialExpansionSettingsTests
         Assert.That(rows["xp_rate_by_level"], Is.EqualTo(SocialExpansionSettings.SuggestedPlayerXp));
         Assert.That(rows["quest_xp_by_level"] + rows["bot_incoming_fire_reaction"] + rows["bot_era_names"] + rows["bot_living_leeroy"],
             Is.EqualTo("TrueTrueTrueTrue"));
+        Assert.That((rows["bot_epic_encounter_tactics"], rows["epic_original_mechanics"]), Is.EqualTo(("True", "all")));
         Assert.That(rows["bot_living_memory"], Is.EqualTo("True"));
         Assert.That(rows["bot_living_beggars"], Is.EqualTo("True"));
         Assert.That(rows["bot_living_deeds"] + rows["bot_living_storylines"] + rows["bot_living_characters"] + rows["bot_living_rumours"],

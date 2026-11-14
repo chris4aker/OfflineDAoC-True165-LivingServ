@@ -581,6 +581,7 @@ public static class AutonomousBotRealmGuilds
         }
 
         // Posted game-loop actions run in parallel, so a login and a rebind of the same bot can overlap.
+        Guild before = bot.Guild;
         lock (BindSync)
         {
             if (bot.Guild != null && (bot.Guild != target || target == null))
@@ -588,6 +589,9 @@ public static class AutonomousBotRealmGuilds
             if (target != null && rank != null)
                 target.AddBotMember(bot, rank);
         }
+        // True 1.65: the guild name and emblem a gamebot shows come from AutonomousBotGuilds.ShownGuild.
+        if (bot.Guild != before)
+            AutonomousBotGuilds.Present(bot);
     }
 
     #endregion

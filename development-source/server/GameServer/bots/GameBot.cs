@@ -2306,7 +2306,10 @@ namespace DOL.GS
             AutonomousStuckWatchdog.MarkProgress(this, eAutonomousProgressKind.RealmPoints);
             MarkAutonomousStateDirty();
             if (RealmLevel != previousRealmLevel && IsWorldGamebot)
+            {
                 AutonomousLivingServer.OnBotRealmLevel(this, previousRealmLevel);   // Living Server: grats and server firsts
+                AutonomousBotGuildEconomy.OnBotGuildLevels(this, Level, previousRealmLevel);   // bot guilds' merit (off by default)
+            }
         }
 
         public override void GainRealmPoints(long amount) => GainRealmPoints(amount, true);
@@ -2407,6 +2410,7 @@ namespace DOL.GS
                 if (IsWorldGamebot)
                 {
                     // Living Server: the ding in its own voice, its guild's grats, and the bots that know it
+                    AutonomousBotGuildEconomy.OnBotGuildLevels(this, previousLevel, RealmLevel);   // bot guilds' merit (off by default)
                     AutonomousBotGuildSocial.OnBotLevelUp(this);
                     AutonomousBotVoices.OnBotLevelUp(this);
                     AutonomousLivingServer.OnLevelUp(this, Level);

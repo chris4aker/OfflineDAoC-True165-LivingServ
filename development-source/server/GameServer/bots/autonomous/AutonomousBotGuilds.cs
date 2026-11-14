@@ -43,7 +43,9 @@ namespace DOL.GS
             // A hired companion shows its player's guild, as cosmetics (owner 2026-11-05); it never
             // joins the guild itself. An invited gamebot shows only its own guild (a /gc invite makes it a member).
             if (HiredCompanions165.IsHired(bot)) return bot.CompanionPlayer?.Guild;
-            if (bot.IsAutonomousWorldBot) return GuildOf(bot.DatabaseID);
+            // A Living Server bot guild's member (off by default) shows that guild: it is the only membership that sets a
+            // gamebot's own Guild (Guild.AddBotMember).
+            if (bot.IsAutonomousWorldBot) return GuildOf(bot.DatabaseID) ?? bot.Guild;
             return bot.Owner?.Guild;
         }
 
@@ -78,7 +80,8 @@ namespace DOL.GS
         public static bool CreditLootedCoin(long botId, long money)
         {
             if (money <= 0) return false;
-            Guild guild = GuildOf(botId);
+            // Living Server bot guilds (off by default): a bot guild's member pays its own guild's dues.
+            Guild guild = GuildOf(botId) ?? AutonomousBotGuildEconomy.BotGuildOf(botId);
             long dues = guild == null ? 0 : DuesOf(money, guild.IsGuildDuesOn(), guild.GetGuildDuesPercent());
             long kept = money - dues;
             if (kept > 0 && !AutonomousBotEconomy.AddMoney(botId, kept, BotMoneyLedger165.Kind.LootCoin))

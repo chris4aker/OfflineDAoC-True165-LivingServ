@@ -31,7 +31,7 @@ internal sealed class SocialExpansionSettingsControl : UserControl
     private readonly CheckBox _playerGuildEconomy = Switch("Bots in your guild");
     private readonly CheckBox _personalities = Switch("Bot personalities");
     private readonly CheckBox _voices = Switch("Bot voices");
-    private readonly CheckBox _debates = Switch("/faction debates", part: true);
+    private readonly CheckBox _debates = Switch("Realm debates", part: true);
     private readonly NumericUpDown _chatRate = ChatRateInput("How much bots talk");
     private readonly CheckBox _memory = Switch("Bots remember you");
     private readonly CheckBox _grats = Switch("Grats");
@@ -92,23 +92,23 @@ internal sealed class SocialExpansionSettingsControl : UserControl
         BackColor = DaocTheme.Panel;
         ForeColor = DaocTheme.Text;
 
-        var guilds = Card("BOT GUILDS", DaocTheme.Gold, 9);
-        Add(guilds, _guilds, null, "Bots form realm guilds, wear guild names, group with guildmates, recruit you, and accept your /ginvite.");
+        // True 1.65 edition: off by default. Gamebots you /ginvite into your own guild work as True 1.65 has them either way.
+        var guilds = Card("BOT GUILDS", DaocTheme.Gold, 8);
+        Add(guilds, _guilds, null, "Gamebots form their own realm guilds, wear guild names, group with guildmates and recruit you. Off: True 1.65's guilds only.");
         Func<SocialExpansionSettings, bool> guildsOn = v => v.BotGuilds;
         Dependent(Caption("BOTS IN GUILDS"), Add(guilds, null, WithUnit(_share, "%"), "Share of eligible autonomous bots placed in a guild."), guildsOn);
         Dependent(Caption("LOWEST LEVEL"), Add(guilds, null, _minLevel, "Bots below this level stay unguilded."), guildsOn);
-        Dependent(_guildSocial, Add(guilds, _guildSocial, null, "Greetings and congratulations in guild chat, answers to your /gu, recruiting in /faction."), guildsOn);
+        Dependent(_guildSocial, Add(guilds, _guildSocial, null, "Greetings and congratulations in guild chat, answers to your /gu, recruiting in realm chat."), guildsOn);
         Dependent(_guildRecruit, Add(guilds, _guildRecruit, null, "Bot officers invite you with a yes/no box when you ask for a guild or are nearby. Needs guild chat."),
             v => v.BotGuilds && v.GuildSocial);
         Dependent(_guildClaims, Add(guilds, _guildClaims, null, "Bot guilds claim the keeps their realm takes and defend them first. Never while you are inside."), guildsOn);
         Dependent(_guildEconomy, Add(guilds, _guildEconomy, null, "Dues from real loot, merit points from level-ups, and 24-hour guild buffs."), guildsOn);
         Dependent(_guildAlliances, Add(guilds, _guildAlliances, null, "Each realm's RvR and raiding bot guilds form one alliance. Your own guild's alliances are never touched."), guildsOn);
-        Add(guilds, _playerGuildEconomy, null, "Gamebots you /ginvite pay your guild's dues from real loot and earn it merit from levels and realm ranks. Even with bot guilds off.");
 
         var voices = Card("PERSONALITIES AND VOICES", DaocTheme.Gold, 4);
         Add(voices, _personalities, null, "Leveler, Socialite, Daredevil, Explorer, Crafter or No-lifer, tilting how each bot spends its time. Target a bot and type /personality.");
         Add(voices, _voices, null, "Period chat lines from 2002–2003, chosen by realm, class, level and moment, each bot in its own writing style.");
-        Dependent(_debates, Add(voices, _debates, null, "Spec arguments, relic alerts and long threads in /faction, every 30–45 minutes while you play. Needs bot voices."),
+        Dependent(_debates, Add(voices, _debates, null, "Spec arguments, relic alerts and long threads in realm chat, every 30–45 minutes while you play. Needs bot voices."),
             v => v.Voices);
         Dependent(Caption("HOW MUCH THEY TALK"), Add(voices, null, WithUnit(_chatRate, "×"),
             "2 (the default) sounds like a busy server; 1 is calmer, 3 very busy; 0 only answers. Chat still follows the hour and the bots online. Needs bot voices."), v => v.Voices);
@@ -116,15 +116,15 @@ internal sealed class SocialExpansionSettingsControl : UserControl
         // True 1.65 edition: no bot schedule, breaks or body language rows (SocialExpansionSettings.NotInThisEdition).
         var living = Card("SERVER LIFE", DaocTheme.Gold, 13);
         Add(living, _memory, null, "Bots of your realm remember grouping with you, your rezzes and rude words: they greet and thank you by name.");
-        Add(living, _grats, null, "Dings get grats from the group and bots nearby; a new level 50 gets cheers in /faction.");
+        Add(living, _grats, null, "Dings get grats from the group and bots nearby; a new level 50 gets cheers in realm chat.");
         Add(living, _firsts, null, "The first to level 50, to 50 in each class and to each realm rank is announced and goes in the Herald.");
         Add(living, _death, null, "Dead bots ask you for a rez and thank you; a passing bot healer may rez you (you still accept).");
-        Add(living, _alarms, null, "A frontier bot that sees 3+ enemies calls size, classes and place in /faction (once per 2 minutes).");
-        Add(living, _nemesis, null, "Bots remember who killed them, name the killer in /faction and gloat when they get revenge.");
+        Add(living, _alarms, null, "A frontier bot that sees 3+ enemies calls size, classes and place on the realm chat group (once per 2 minutes).");
+        Add(living, _nemesis, null, "Bots remember who killed them, name the killer in realm chat and gloat when they get revenge.");
         Add(living, _beggars, null, "A few Crafter bots beg in their capital and hoard coin. Ask anyone for gold and they follow you, insulting you, until you leave.");
-        Add(living, _deeds, null, "Bots that see you solo a named, go on a streak or die to a rat tell /faction. You earn a reputation and a nickname.");
-        Add(living, _storylines, null, "Pairs of bots live out dramas over days. Take a side in /faction and the ending follows you.");
-        Add(living, _characters, null, "Gold spammers flood /faction until they're banned; a few bots roleplay in thee and thou and get mocked.");
+        Add(living, _deeds, null, "Bots that see you solo a named, go on a streak or die to a rat tell the realm. You earn a reputation and a nickname.");
+        Add(living, _storylines, null, "Pairs of bots live out dramas over days. A GM can take a side in /faction and the ending follows.");
+        Add(living, _characters, null, "Gold spammers flood /broadcast until they're banned; a few bots roleplay in thee and thou and get mocked.");
         Add(living, _rumours, null, "Bots pass on true rumours: a rare named that just spawned, an enemy keep with its guards down.");
         Add(living, _holidays, null, "Around Halloween, Christmas, New Year and other holidays on your PC's calendar, bots talk about them and wish you well.");
         Add(living, _leeroy, null, "One end-game raid in twenty has a bot who charges the final boss early, yelling his name; the raid has to follow him in.");
@@ -178,12 +178,12 @@ internal sealed class SocialExpansionSettingsControl : UserControl
         (Control Control, int Height)[] parts =
         [
             (Intro(), 40),
-            // True 1.65 edition: the bot guild card is built but not shown (NotInThisEdition).
             (voices.Panel, voices.Height),
             (living.Panel, living.Height),
             (play.Panel, play.Height),
             (power.Panel, power.Height),
             (xp.Panel, xp.Height),
+            (guilds.Panel, guilds.Height),
         ];
         page.RowCount = parts.Length;
         int total = 0;

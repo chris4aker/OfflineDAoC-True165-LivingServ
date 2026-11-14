@@ -282,7 +282,11 @@ namespace DOL.GS
                              .OrderByDescending(e => e.LastPressureTick).ToArray())
                 {
                     int before = active.Attackers.Values.Sum() + active.Defenders.Values.Sum() + active.ThirdRealm.Values.Sum();
-                    foreach (var candidate in forces.OrderBy(f => f.Members.Min(b => b.CurrentRegionID == active.Target.RegionId ?
+                    // Living Server bot guilds (off by default): a guild's own warbands answer first when the keep it
+                    // claimed is attacked, and are never held in reserve. Off or unclaimed, every force ranks the same.
+                    string claimGuildId = AutonomousBotGuildKeeps.ClaimGuildIdOf(active.Target.RegionId, active.Target.Name);
+                    foreach (var candidate in forces.OrderBy(f => AutonomousBotGuildKeeps.ClaimDefenseRank(claimGuildId, f.Members))
+                                 .ThenBy(f => f.Members.Min(b => b.CurrentRegionID == active.Target.RegionId ?
                                  Vector2.DistanceSquared(new(b.X, b.Y), new(active.Target.X, active.Target.Y)) : float.MaxValue)))
                     {
                         Force force = candidate.Force;
@@ -291,7 +295,8 @@ namespace DOL.GS
                             CarrierEvents.Values.Any(c => c.Participants.Values.Any(r => r.ContainsKey(force.GroupId)))) continue;
                         // Keep a deterministic 30% reserve of whole warbands;
                         // incidental nearby combat remains handled by normal AI.
-                        if (ResponseReserve(candidate.Members.Min(b => b.DatabaseID))) continue;
+                        if (ResponseReserve(candidate.Members.Min(b => b.DatabaseID)) &&
+                            AutonomousBotGuildKeeps.ClaimDefenseRank(claimGuildId, candidate.Members) != 0) continue;
                         if (candidate.Members.Any(b => b.InCombat || b.IsAttacking || b.IsStunned || b.IsMezzed ||
                             (b.Brain as BotBrain)?.HasAggro == true || GameRelic.IsPlayerCarryingRelic(b))) continue;
                         // Missing/dead members may catch up. Only mixed-level,

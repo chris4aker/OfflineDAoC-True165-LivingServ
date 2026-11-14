@@ -44,6 +44,26 @@ namespace DOL.GS.Tests
             guild.SetGuildDuesPercent(percent);
             return guild;
         }
+        /// <summary>True 1.65 edition: with bot guilds off, or their economy off, no gamebot's coin or merit goes to a bot guild.</summary>
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        [TestCase(false, false)]
+        public void BotGuildOf_IsNullUnlessBotGuildsAndTheirEconomyAreOn(bool guilds, bool economy)
+        {
+            Properties.BOT_GUILDS_ENABLED = guilds;
+            Properties.BOT_GUILD_ECONOMY = economy;
+            Assert.That(Economy.BotGuildOf(42), Is.Null);
+            Assert.That(Economy.BotGuildOf(0), Is.Null);
+        }
+
+        [Test]
+        public void GuildmateRank_IsTheSameForEveryoneWithBotGuildsOff()
+        {
+            Assert.That(AutonomousBotRealmGuilds.GuildmateRank(false, "g1", "g1"), Is.EqualTo(AutonomousBotRealmGuilds.GuildmateRank(false, "g1", "g2")));
+            Assert.That(AutonomousBotGuildKeeps.ClaimDefenseRank(false, "g1", new[] { "g1", "g1" }), Is.EqualTo(1));
+            Assert.That(AutonomousBotGuildKeeps.ClaimDefenseRank(true, null, new[] { "g1", "g1" }), Is.EqualTo(1));
+        }
+
         [TestCase(1000, true, 5, 50, 950)]
         [TestCase(1000, false, 5, 0, 1000)]
         [TestCase(1000, true, 0, 0, 1000)]

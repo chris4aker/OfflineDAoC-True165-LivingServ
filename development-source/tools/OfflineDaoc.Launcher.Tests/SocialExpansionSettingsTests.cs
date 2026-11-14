@@ -108,7 +108,7 @@ public class SocialExpansionSettingsTests
     {
         AllOn.Save(_database, null, () => _stopped);
         var rows = Rows();
-        // True 1.65 edition: guilds, schedules, breaks and body language are not written at all.
+        // True 1.65 edition: schedules, breaks, body language and the player-guild economy switch are not written at all.
         foreach (string hidden in SocialExpansionSettings.NotInThisEdition)
             Assert.That(rows.ContainsKey(hidden), Is.False, hidden + " is not written in this edition");
         Assert.That(rows["bot_personalities_enabled"], Is.EqualTo("True"));
@@ -124,7 +124,7 @@ public class SocialExpansionSettingsTests
         var d = SocialExpansionSettings.Defaults;
         Assert.That(SocialExpansionSettings.Load(_database, problems), Is.EqualTo(AllOn with
         {
-            BotGuilds = d.BotGuilds, GuildSharePercent = d.GuildSharePercent, GuildMinLevel = d.GuildMinLevel, GuildAlliances = d.GuildAlliances,
+            PlayerGuildEconomy = d.PlayerGuildEconomy,
             ScheduleMode = "off", LivingBreaks = false, LivingBodyLanguage = false,
         }), "what this edition doesn't carry reads back as the server's default");
         Assert.That(problems, Is.Empty);
@@ -286,15 +286,13 @@ public class SocialExpansionSettingsTests
         using var panel = (Control)Activator.CreateInstance(type, _database, (Func<bool>)(() => _stopped))!;
         var rate = (NumericUpDown)type.GetField("_manaRate", Hidden)!.GetValue(panel)!;
         var halved = (CheckBox)type.GetField("_manaHalved", Hidden)!.GetValue(panel)!;
-        var inYourGuild = (CheckBox)type.GetField("_playerGuildEconomy", Hidden)!.GetValue(panel)!;
-        Assert.That((rate.Value, halved.Checked, inYourGuild.Checked), Is.EqualTo((1.5m, true, false)));
+        Assert.That((rate.Value, halved.Checked), Is.EqualTo((1.5m, true)));
         rate.Value = 2m;
         halved.Checked = false;
-        inYourGuild.Checked = true;
         type.GetMethod("SaveSettings", Hidden)!.Invoke(panel, null);
         rows = Rows();
-        Assert.That((rows["bot_player_guild_economy"], rows["mana_regen_amount_modifier"], rows["mana_regen_amount_halved_below_50_percent"]),
-            Is.EqualTo(("True", "2", "False")));
+        Assert.That((rows["mana_regen_amount_modifier"], rows["mana_regen_amount_halved_below_50_percent"]), Is.EqualTo(("2", "False")));
+        Assert.That(rows.ContainsKey("bot_player_guild_economy"), Is.False, "True 1.65 has its own rule for gamebots in your guild");
     }
 
     /// <summary>The keys and defaults here must be the server's (ServerProperties.cs), or the tab would show the wrong state.</summary>

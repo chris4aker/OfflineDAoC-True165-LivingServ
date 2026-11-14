@@ -150,6 +150,7 @@ public static class AutonomousBotRegistry
             // its Realm Exchange listings that ran out while it was away are relisted or returned now (owner 2026-11-11)
             Exchange165.OwnerOnline(bot.DatabaseID);
             BotFriends.OnBotOnline(bot);   // Living Server: players' friends lists see it log in
+            AutonomousBotRealmGuilds.OnBotOnline(bot);   // Living Server bot guilds (off by default)
         }
     }
 
@@ -161,6 +162,7 @@ public static class AutonomousBotRegistry
             AutonomousGoalDiagnostics.End(bot, GoalAttemptEnd.Logout, "Bot left the active world; not a goal failure");
             Active.TryRemove(bot.DatabaseID, out _);
             BotFriends.OnBotOffline(bot);   // Living Server
+            AutonomousBotRealmGuilds.OnBotOffline(bot);
             _snapshot = new(-1, []);
             AutonomousBotEconomy.ForgetCachedDecision(bot.DatabaseID);
         }

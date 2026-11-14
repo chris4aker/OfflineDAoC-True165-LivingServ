@@ -89,10 +89,16 @@ namespace DOL.GS
             if (guild == null)
                 return null;
 
+            Dictionary<string, GuildMemberView> views;
             lock (_lock)
             {
-                return !_guildMemberViews.TryGetValue(guild, out Dictionary<string, GuildMemberView> value) ?  null : new(value);
+                if (!_guildMemberViews.TryGetValue(guild, out Dictionary<string, GuildMemberView> value))
+                    return null;
+                views = new(value);
             }
+            // Living Server bot guilds (off by default): their gamebot members come from their own table.
+            AutonomousBotRealmGuilds.AppendMemberViews(guild, views);
+            return views;
         }
 
         public static Guild CreateGuild(eRealm realm, string guildName, GamePlayer creator = null)
@@ -183,6 +189,18 @@ namespace DOL.GS
                 }
 
                 RemoveGuild(guild);
+            }
+
+            // Living Server bot guilds: their gamebots leave a deleted guild at once, so no dues go into a guild that no
+            // longer exists. Outside _lock: bot guild reconciles take their own lock first and then call into GuildMgr.
+            if (disbanding != null)
+            {
+                foreach (GameBot bot in disbanding.GetOnlineBotMembers())
+                {
+                    disbanding.RemoveBotMember(bot);
+                    AutonomousBotGuilds.Present(bot);
+                }
+                AutonomousBotRealmGuilds.ForgetGuild(disbanding.GuildID);
             }
 
             foreach (GamePlayer member in onlineMembers)

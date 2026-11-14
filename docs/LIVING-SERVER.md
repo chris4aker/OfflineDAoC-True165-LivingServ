@@ -5,7 +5,9 @@
 
 Living Server is [chris4aker's add-on](https://github.com/chris4aker/OfflineDAoC-LivingServer) for the original
 Offline DAoC (0.37): gamebots with personalities and voices that talk, argue, remember you and hold grudges. This
-branch carries its first part, the **talk layer**, onto Offline DAoC True 1.65.
+branch carries it onto Offline DAoC True 1.65: first the **talk layer**, then the rest of Living Server 1.1.4, each
+part that changes how True 1.65 plays switched off ([the port log](../tools/living-server-port/PORT-LOG-1.1.4.md)
+says what came across, what didn't and why).
 
 - Carried from: Living Server Beta 1.1.4 (`v1.1.4-beta`). Its server code is 1.1.3's (`dd2e856`) but for the version line.
 - Carried onto: Offline DAoC True 1.65 main at `f68cc75` (v0.7, the work for 0.8; the project is now
@@ -90,38 +92,58 @@ parts that change what a bot does (firsts, death, alarms, nemesis) are off until
 | `bot_schedule_mode` | off | Leave off. True 1.65's population system decides who is online. |
 | `bot_living_breaks` | off | Leave off for the same reason. |
 | `bot_living_body_language` | off | Wired in towns only; not ready. |
-| `bot_guilds_enabled` and the other `bot_guild_*` | off | Bot-run guilds. The code is here but switched off and not joined to True 1.65's guild code. |
+| `bot_living_leeroy` | off | One end-game raid in twenty has a raider who charges the final boss early. |
+| `bot_incoming_fire_reaction` | off | Gamebots hit by a player take a moment to react, as a person does. |
+| `bot_era_names` | off | New gamebots get names in the style of 2003's servers. |
+| `xp_rate_by_level`, `bot_xp_rate_by_level` | empty | XP rates by level range; empty keeps True 1.65's rates. |
+| `quest_xp_by_level` | off | Quest XP follows `xp_rate_by_level`. |
+| `bot_guilds_enabled` and the other `bot_guild_*` | off | Gamebots found and run their own realm guilds (below). |
+| `bot_chat_period_channels` | on | True 1.65's own switch: bot talk on the period channels (below). Off: everything on `<Faction>`. |
 
-There is no launcher tab for these yet; until there is, a setting is changed in the `ServerProperty` table.
+The launcher's **Living Server** tab sets all of these (with the server stopped); its suggested settings turn on the
+chat parts and leave everything that changes how the game plays off.
+
+**Bot guilds** (`bot_guilds_enabled`, off): gamebots form realm guilds and carry the guild name and emblem, group
+with guildmates first, talk in /gu, recruit you, and with their parts on claim keeps and defend them first, pay dues
+and earn merit, and form realm alliances. Gamebots you /ginvite into your own guild work as True 1.65 has them,
+switch or no switch: they pay its dues and never earn it merit. A bot guild's member you /ginvite leaves its bot
+guild for yours (its leader and officers turn you down).
+
+**The channels.** Every voice line used to go out as `<Faction>`. Now a gamebot's line goes on True 1.65's period
+channel, chosen as True 1.65 chooses it for its own banter: RvR talk on the realm's chat group, trade and general talk
+on /broadcast to the players of the realm in the speaker's region, questions on /advice. A thread, debate or
+storyline stays on the channel and in the region its first line went to, so a /broadcast scene is heard where it
+started and nowhere else. Bots answering a GM's /faction line answer on /faction.
 
 ## Not carried over
 
 **Left behind on purpose** (they break True 1.65's rules, or True 1.65 has its own):
-- Epic Special Forces (gamebots handed epic gear), XP by level range, quest XP by level, faster power regeneration.
-- The Atlas daily quests and the Hearth quest chains.
+- Epic Special Forces (gamebots handed epic gear) and faster power regeneration (the tab keeps True 1.65's rate).
+- The Atlas daily quests and the Hearth quest chains, Living Server's quest markers and journal: True 1.65 has its own.
 - Bot logins and logouts by schedule, "brb" breaks and linkdeads: True 1.65's population system does this.
-- The 2003 name generator, quest markers, guild dues, flanking: True 1.65 has its own.
-- The Setup installer, the launcher's Living Server tab and everything for the original client.
+- Flanking, and Living Server's fixes to 0.37's gamebot AI where True 1.65 has its own (the port log lists each).
+- Everything for the original client.
 
-**Here but switched off** (they compile so the talk layer builds; they need their own pass):
-- Bot-run guilds and Living Server's guild chat. Gamebots in your guild still talk as True 1.65 has them.
+**Here but switched off** (they need their own pass):
 - Body language.
 - Personality tastes in camp, dungeon and goal choice, and friends looking for each other when groups form. These
   would change how True 1.65's gamebots hunt, so they wait for a play test.
 
 **Later parts of Living Server:**
-- Epic encounters: raid tactics and restored boss mechanics.
+- Epic encounters: raid tactics and restored boss mechanics (True 1.65 has its own boss work on the same bosses).
 - From Living Server 1.2, once it is released: bot-led groups, RvR perception, the lore, raid skill.
-- Reactions to incoming fire, the route fixes and the diagnostics.
+- The route fixes and the diagnostics.
 
 ## What has been checked
 
 On the current base (`f68cc75`), 2026-11-14:
 
 - **Build:** the whole solution builds with 0 errors (.NET 10).
-- **Automated tests:** 6,585 of 6,586 pass. The one that fails is True 1.65's own
-  `UT_BotNameService.Claims_FiftyThousandPerRealmUniqueAndNeverThrow`, which failed on some runs of unmodified
-  True 1.65 on 2026-11-11 as well; it has not been re-run on the unmodified new base.
+- **Automated tests:** all 6,740 pass on the latest run. True 1.65's own
+  `UT_BotNameService.Claims_FiftyThousandPerRealmUniqueAndNeverThrow` fails on some runs: it fails the same way on
+  unmodified True 1.65 v0.7 (4 of 5 runs on 2026-11-14, a name claim waiting over 250 ms for the registry's lock).
+- **The launcher's tests** need Windows; they build here and run in the Windows CI workflow
+  (`.github/workflows/living-server.yml`).
 - **Moving to the new base:** 236 of the 241 files applied unchanged. Five needed a hand merge: `GameBot.cs`,
   `AutonomousChatKnowledge.cs`, `AutonomousRealmRaid.cs`, `emotes.cs` (both sides kept) and
   `AutonomousBotChatCoordinator.cs` (Living Server's version, with True 1.65's newer /lfg line, zone counts and
@@ -131,9 +153,9 @@ On the current base (`f68cc75`), 2026-11-14:
 - The server has not been started on the new base. (On the old base it started on the clean world, loaded the
   lines and logged in gamebots.)
 - Nothing has been seen in game on any base.
-- **Known gap:** True 1.65 now sends gamebot talk on the period channels (/broadcast, /advice, chat groups). The
-  voices here still go out as `<Faction>` lines; they are not on the period channels yet. True 1.65's newer /advice
-  answer and reply sampling are in the file but Living Server's own reply paths do not use them.
+- The voices on the period channels have not been heard in game. True 1.65's newer /advice answer and reply sampling
+  are in the coordinator, but Living Server's own reply paths don't use them.
+- Bot guilds have not been switched on in game on True 1.65.
 - How the banter library and the voices sound together, and server load at 1,000 gamebots a realm.
 
 ## Working on it

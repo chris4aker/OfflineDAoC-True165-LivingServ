@@ -1807,7 +1807,9 @@ public static partial class AutonomousBotGroupCoordinator
                                           candidate.IsReturningAfterRelease, candidate.InCombat,
                                           candidate.IsAttacking, (candidate.Brain as BotBrain)?.HasAggro == true,
                                           candidate.GetDistanceTo(leader))))
-                .OrderBy(candidate => Math.Abs(candidate.Level - leader.Level))
+                // Living Server bot guilds (off by default): guildmates first. Off, every candidate ranks the same.
+                .OrderBy(candidate => AutonomousBotRealmGuilds.GuildmateRank(leader, candidate))
+                .ThenBy(candidate => Math.Abs(candidate.Level - leader.Level))
                 .ThenBy(candidate => candidate.GetDistanceTo(leader))
                 .ToArray();
             Dictionary<long, BotPveGroupRole> pveRoles = null;
@@ -3070,6 +3072,9 @@ public static partial class AutonomousBotGroupCoordinator
         roles = null;
         GameBot[] pool = candidates.Where(candidate => candidate?.CharacterClass != null)
             .OrderBy(_ => Random.Shared.Next()).ToArray();
+        // Living Server bot guilds (off by default): guildmates are offered first; the healer order below keeps it.
+        if (AutonomousBotRealmGuilds.Enabled)
+            pool = pool.OrderBy(candidate => AutonomousBotRealmGuilds.GuildmateRank(leader, candidate)).ToArray();
         // M2 (veteran review 2026-11-11): real healers (a Rejuvenation Cleric, a Mending Healer ...) are offered first, so
         // a party takes them before a Smite Cleric, a Paladin or a Friar without Rejuvenation fills its healer slot.
         bool specRoles = Classic165Mode.IsOn;

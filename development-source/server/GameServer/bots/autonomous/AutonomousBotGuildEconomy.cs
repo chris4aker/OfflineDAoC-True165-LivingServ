@@ -192,6 +192,33 @@ public static class AutonomousBotGuildEconomy
         return true;
     }
 
+    /// <summary>
+    /// True 1.65 edition: the Living Server bot guild a gamebot's dues and merit go to, or null. Only with bot guilds and
+    /// their economy on, and only for a member of a bot guild: a gamebot a player invited into a guild pays that guild's
+    /// dues as True 1.65 has it (AutonomousBotGuilds.CreditLootedCoin) and never earns it merit.
+    /// </summary>
+    public static Guild BotGuildOf(long botId)
+    {
+        if (!Enabled || botId <= 0 || AutonomousBotGuilds.GuildOf(botId) != null ||
+            !AutonomousBotRealmGuilds.TryGetMembership(botId, out AutonomousBotRealmGuilds.Membership membership))
+            return null;
+        Guild guild = GuildMgr.GetGuildByGuildID(membership.GuildId);
+        return AutonomousBotRealmGuilds.IsBotGuild(guild) ? guild : null;
+    }
+
+    /// <summary>True 1.65 edition: a bot guild's member earns its guild merit for its levels and realm ranks.</summary>
+    public static void OnBotGuildLevels(GameBot bot, int previousLevel, int previousRealmLevel)
+    {
+        if (bot == null || !bot.IsWorldGamebot || bot.IsTemporaryGroupHelper)
+            return;
+        Guild guild = BotGuildOf(bot.DatabaseID);
+        if (guild == null)
+            return;
+        long merit = MeritForLevels(previousLevel, bot.Level) + MeritForRealmLevels(previousRealmLevel, bot.RealmLevel);
+        if (AwardMerit(guild, merit))
+            Notices.Add(guild.GuildID, bot.Name, merit);
+    }
+
     /// <summary>Called by GameBot after a level-up; earns the guild merit points for each level gained.</summary>
     public static void OnBotLevelsGained(GameBot bot, int previousLevel)
     {

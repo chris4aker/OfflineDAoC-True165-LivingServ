@@ -77,14 +77,13 @@ public sealed record SocialExpansionSettings
     /// <summary>
     /// The settings of Living Server 1.1.4 that this True 1.65 edition does not carry yet (or carries switched off and not
     /// joined to True 1.65's own systems): the tab does not show them and never writes them, so the server keeps its own
-    /// default. Bot guilds, and bot schedules, breaks and body language (True 1.65's population system decides who is
-    /// online).
+    /// default. Bot schedules, breaks and body language (True 1.65's population system decides who is online), and
+    /// bot_player_guild_economy: True 1.65 has its own rule for gamebots you invite into your guild (they pay its dues
+    /// and never earn it merit).
     /// </summary>
     public static readonly IReadOnlySet<string> NotInThisEdition = new HashSet<string>(StringComparer.Ordinal)
     {
-        "bot_guilds_enabled", "bot_guild_share", "bot_guild_min_level", "bot_guild_social", "bot_guild_recruit_player",
-        "bot_guild_claims_keeps", "bot_guild_economy", "bot_guild_alliances", "bot_player_guild_economy",
-        "bot_schedule_mode", "bot_living_breaks", "bot_living_body_language",
+        "bot_player_guild_economy", "bot_schedule_mode", "bot_living_breaks", "bot_living_body_language",
     };
 
     /// <summary>The server's defaults: since Beta 1.1 (the talking update) bot voices, bot memory and grats on, the rest off.</summary>

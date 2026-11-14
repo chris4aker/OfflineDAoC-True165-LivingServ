@@ -456,7 +456,10 @@ namespace DOL.AI.Brain
                 if (BotBody?.IsRecoveryResting == true)
                     BotBody.WakeRecoveryRest();
                 ConvertDamageToAggroAmount(ad.Attacker, Math.Max(1, ad.Damage + ad.CriticalDamage));
-                if (ad.Attacker?.IsAlive == true && ad.Attacker != Body)
+                // An autonomous gamebot reacts to a player-shaped attacker like a person (BotIncomingFireReaction): an
+                // area hit from a distance is threat but no personal call, and entering combat draws a reaction delay.
+                BotIncomingFireKind fire = BotIncomingFireReaction.KindOf(BotBody, ad);
+                if (ad.Attacker?.IsAlive == true && ad.Attacker != Body && BotIncomingFireReaction.IsPersonalCall(fire))
                 {
                     _recentDirectAttacker = ad.Attacker;
                     _recentDirectAttackTick = GameLoop.GameLoopTime;
@@ -469,7 +472,7 @@ namespace DOL.AI.Brain
                 if (ShouldEnterAggroStateAfterDirectAttack(
                         HasAggro,
                         FSM.GetCurrentState() == FSM.GetState(eFSMStateType.AGGRO)))
-                    FSM.SetCurrentState(eFSMStateType.AGGRO);
+                    EnterAggroFromIncomingFire(fire, ad.Attacker);
 
                 // Damage is an event, so wake combat immediately without
                 // increasing the ordinary idle/travel AI cadence.
@@ -618,8 +621,8 @@ namespace DOL.AI.Brain
                 if (BotBody?.IsRecoveryResting == true)
                     BotBody.WakeRecoveryRest();
                 NextThinkTick = GameLoop.GameLoopTime;
-                if (FSM.GetState(eFSMStateType.AGGRO) != FSM.GetCurrentState())
-                    FSM.SetCurrentState(eFSMStateType.AGGRO);
+                EnterAggroFromIncomingFire(
+                    BotIncomingFireReaction.MateKindOf(BotBody, attacker, BotIncomingFireReaction.IsAreaEffect(ad)), attacker);
             }
         }
 
@@ -4076,10 +4079,12 @@ namespace DOL.AI.Brain
                 // otherwise expired before the bot ever acted on it (run 9/10 pull loops, raid
                 // target calls that never landed on Summoner Cunovinda).
                 _aggroEndTime = long.MaxValue;
+                _brain.BeginIncomingFireHold();
             }
 
             public override void Exit()
             {
+                _brain.EndIncomingFireHold();
                 _brain.Body.StopAttack();
                 _brain.Body.TargetObject = null;
                 _brain.ClearAggroList();
@@ -4130,6 +4135,13 @@ namespace DOL.AI.Brain
                 if (_brain.BotBody.Stance == eBotStance.Passive)
                 {
                     _brain.TryPassiveLifesavers();
+                    return;
+                }
+
+                // Just hit by a player: a moment before answering (heals and cures go out at once).
+                if (_brain.HoldsIncomingFire())
+                {
+                    _brain.CheckHeals();
                     return;
                 }
 
@@ -4218,7 +4230,7 @@ namespace DOL.AI.Brain
             if (protectionTarget != null)
                 AddToAggroList(protectionTarget, 10000);
 
-            GameLiving directAttacker = RecentDirectAttacker();
+            GameLiving directAttacker = KillOrderAttacker(RecentDirectAttacker());
 
             // Bow release is driven by AttackAction, not by this brain pulse.
             // Re-entering the general target/movement decision while Aim is
@@ -7706,6 +7718,19 @@ namespace DOL.AI.Brain
                         {
                             spellToCast = cureNearsight;
                             spellTarget = blinded;
+                        }
+                    }
+
+                    // A dotted group is answered with the group cure, not one cure per member (BotIncomingFireReaction).
+                    if (spellToCast == null && nextCureTime < GameLoop.GameLoopTime && BotIncomingFireReaction.Applies(BotBody) &&
+                        CheckHealSpell(BotBody.CurePoisonGroup))
+                    {
+                        GameLiving[] dotted = cureGroup.GetMembersInTheGroup()
+                            .Where(member => member != null && member.IsAlive && member.IsPoisoned && InSupportReach(member)).ToArray();
+                        if (BotIncomingFireReaction.PrefersGroupCure(dotted.Length))
+                        {
+                            spellToCast = BotBody.CurePoisonGroup;
+                            spellTarget = dotted[0];
                         }
                     }
 

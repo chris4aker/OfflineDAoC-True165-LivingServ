@@ -945,12 +945,13 @@ namespace DOL.GS.Quests.Hibernia
 		{
 			if (m_questPlayer.Inventory.IsSlotsFree(1, eInventorySlot.FirstBackpack, eInventorySlot.LastBackpack))
 			{
-				if (m_questPlayer.Level >= 49)
-					m_questPlayer.GainExperience(eXPSource.Quest,
-						(m_questPlayer.ExperienceForNextLevel - m_questPlayer.ExperienceForCurrentLevel) / 3, false);
-				else
-					m_questPlayer.GainExperience(eXPSource.Quest,
-						(m_questPlayer.ExperienceForNextLevel - m_questPlayer.ExperienceForCurrentLevel) / 2, false);
+				// Quest experience at your pace (Living Server, quest_xp_by_level): with the setting on this half level (a third
+				// at 49) pays through GainQuestExperience like every other quest; off, it pays exactly as True 1.65 does.
+				long questXp = (m_questPlayer.ExperienceForNextLevel - m_questPlayer.ExperienceForCurrentLevel) / (m_questPlayer.Level >= 49 ? 3 : 2);
+				if (!ServerProperties.Properties.QUEST_XP_BY_LEVEL)
+					m_questPlayer.GainExperience(eXPSource.Quest, questXp, false);
+				else if (m_questPlayer.GainXP)
+					m_questPlayer.GainQuestExperience(questXp, Name);
 				RemoveItem(m_questPlayer, glowing_red_jewel);
 				GiveItem(m_questPlayer, paidrean_necklace);
 				m_questPlayer.AddMoney(Money.GetMoney(0, 0, 121, 41, Util.Random(50)), "You receive {0} as a reward.");

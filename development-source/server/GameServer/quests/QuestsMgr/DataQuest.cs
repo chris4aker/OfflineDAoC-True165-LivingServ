@@ -243,6 +243,15 @@ namespace DOL.GS.Quests
 		protected List<byte> m_allowedClasses = new List<byte>();
 		string m_classType = string.Empty;
 		string m_additionalData = string.Empty;
+		// Living Server (owner 2026-10-31): the monster whose kill a kill step last counted, and when, so one kill counts
+		// once however many notifications carry it (QuestKillCredit.IsRepeat).
+		GameLiving m_lastKillCounted;
+		long m_lastKillCountedAt;
+		// Living Server (from HearthDAoC): the item being handed over while its step advances; it doesn't count as carried.
+		DbInventoryItem m_handingOver;
+
+		/// <summary>The clock the once-per-kill rule reads: the game loop's. A test double can move it.</summary>
+		protected virtual long KillClock => GameLoop.GameLoopTime;
 
 		#region Construction
 
@@ -1652,9 +1661,12 @@ namespace DOL.GS.Quests
 					{
 						// Allow StepItemTemplate to be empty, assume quest player received item in a previous step or outside of the quest
 
-						if (!string.IsNullOrEmpty(m_stepItemTemplates[Step].Trim()))
+						// Not a second copy of an item the player carries or the finishing step hands (Living Server, from
+						// HearthDAoC: "Traveler's Way -- Supply Run" gave two bundles).
+						string deliveryItem = m_stepItemTemplates[Step].Trim();
+						if (QuestDeliveryItems.ShouldHand(deliveryItem, CarriedItemIds(QuestPlayer), stepTemplates))
 						{
-							stepTemplates.Add(m_stepItemTemplates[Step].Trim());
+							stepTemplates.Add(deliveryItem);
 						}
 					}
 
@@ -1913,8 +1925,22 @@ namespace DOL.GS.Quests
 				{
 					EnemyKilledEventArgs a = args as EnemyKilledEventArgs;
 					GamePlayer player = sender as GamePlayer;
-					GameLiving killed = a.Target;
+					GameLiving killed = a?.Target;
 
+					// Living Server (owner 2026-10-31): a kill counts once. GamePlayer.EnemyKilled repeats the kill to this player's
+					// quests for each groupmate in range who didn't attack (that groupmate as the sender), and one kill advanced
+					// consecutive kill steps. The repeat is known by the monster, not by the sender, so the named mobs' forced
+					// credit, sent to every player in sight with the killer as the sender, still counts (QuestKillCredit.IsRepeat).
+					// A quest nobody holds counts no kill.
+					if (m_questPlayer == null || killed == null)
+						return;
+
+					long now = KillClock;
+					if (QuestKillCredit.IsRepeat(killed, m_lastKillCounted, m_lastKillCountedAt, now))
+						return;
+
+					m_lastKillCounted = killed;
+					m_lastKillCountedAt = now;
 					OnEnemyKilled(player, killed);
 
 					return;
@@ -1978,6 +2004,8 @@ namespace DOL.GS.Quests
 				{
 					if ((quest.ID + DATAQUEST_CLIENTOFFSET) == qargs.QuestID)
 					{
+						if (RefuseWhenJournalFull(player))
+							return;
 						DbCharacterXDataQuest charQuest = GetCharacterQuest(player, quest.ID, true);
 						DataQuest dq = new DataQuest(player, giver, quest, charQuest);
 						dq.Step = 1;
@@ -2105,6 +2133,8 @@ namespace DOL.GS.Quests
 
 				if (StartType == eStartType.AutoStart)
 				{
+					if (RefuseWhenJournalFull(player))
+						return;
 					DbCharacterXDataQuest charQuest = GetCharacterQuest(player, ID, true);
 					DataQuest dq = new DataQuest(player, obj, DBDataQuest, charQuest);
 					dq.Step = 1;
@@ -2131,6 +2161,8 @@ namespace DOL.GS.Quests
 
                 if (StartType == eStartType.SearchStart)
                 {
+                    if (RefuseWhenJournalFull(player)) // before the start item or any record exists
+                        return;
                     if (m_searchStartItemTemplate != string.Empty)
                     {
                         lock (player.Inventory.Lock)
@@ -2389,10 +2421,14 @@ namespace DOL.GS.Quests
 			{
 				TryTurnTo(living, player);
 
+				if (RefuseWhenJournalFull(player))
+					return;
+
 				DbCharacterXDataQuest charQuest = GetCharacterQuest(player, ID, true);
 				DataQuest dq = new DataQuest(player, living, DBDataQuest, charQuest);
 				dq.Step = 1;
-				player.AddQuest(dq);
+				if (!player.AddQuest(dq))
+					return;
 				if (m_sourceTexts.Count > 0)
 				{
 					SendMessage(player, m_sourceTexts[0], 0, eChatType.CT_System, eChatLoc.CL_PopupWindow);
@@ -2623,7 +2659,7 @@ namespace DOL.GS.Quests
 									}
 								}
 
-								if (AdvanceQuestStep(obj))
+								if (AdvanceQuestStepHandingOver(obj, item))
 								{
 									RemoveItem(obj, player, item, true);
 									RemoveCopies(obj, player, others, needed - Math.Max(1, item.Count));
@@ -2666,7 +2702,7 @@ namespace DOL.GS.Quests
 							}
 						}
 
-						if (AdvanceQuestStep(obj))
+						if (AdvanceQuestStepHandingOver(obj, item))
 						{
 							RemoveItem(obj, player, item, true);
 						}
@@ -2890,6 +2926,47 @@ namespace DOL.GS.Quests
 		/// </summary>
 		/// <param name="player"></param>
 		/// <param name="enemy"></param>
+		/// <summary>
+		/// Advances the step for an item the player hands over. The item is still in the backpack until the step has
+		/// advanced, so it is marked for CarriedItemIds, which leaves it out (Living Server, from HearthDAoC).
+		/// </summary>
+		protected bool AdvanceQuestStepHandingOver(GameObject obj, DbInventoryItem item)
+		{
+			m_handingOver = item;
+			try
+			{
+				return AdvanceQuestStep(obj);
+			}
+			finally
+			{
+				m_handingOver = null;
+			}
+		}
+
+		/// <summary>The backpack's item ids that count as carried: all but the item being handed over (Living Server).</summary>
+		protected List<string> CarriedItemIds(GamePlayer player)
+		{
+			lock (player.Inventory.Lock)
+			{
+				return QuestDeliveryItems.CarriedIds(player.Inventory.AllItems
+					.Where(i => i.SlotPosition >= (int)eInventorySlot.FirstBackpack && i.SlotPosition <= (int)eInventorySlot.LastBackpack)
+					.Select(i => (i.Id_nb, i.Count, ReferenceEquals(i, m_handingOver) ? Math.Max(i.Count, 1) : 0)));
+			}
+		}
+
+		/// <summary>
+		/// Tells the player and returns true when the journal is full; checked before any record, item or text exists, so a
+		/// refused quest isn't half-started (Living Server, from HearthDAoC).
+		/// </summary>
+		private static bool RefuseWhenJournalFull(GamePlayer player)
+		{
+			if (!QuestJournal.IsFull(player.QuestList.Count))
+				return false;
+
+			player.Out.SendMessage(QuestJournal.FullText, eChatType.CT_System, eChatLoc.CL_SystemWindow);
+			return true;
+		}
+
 		protected virtual void OnEnemyKilled(GamePlayer player, GameLiving living)
 		{
 			if (QuestNames.Same(TargetName, living.Name) && (TargetRegion == living.CurrentRegionID || TargetRegion == 0))
@@ -3367,6 +3444,13 @@ namespace DOL.GS.Quests
 			{
 				m_questPlayer.RemoveFinishedQuest(this);
 				DeleteFromDatabase();
+			}
+			else
+			{
+				// An abandoned repeat keeps its count but goes back to step 0, as a finish leaves it; with its step kept
+				// the next login put it back in the journal (Living Server, from HearthDAoC).
+				m_charQuest.Step = 0;
+				GameServer.Database.SaveObject(m_charQuest);
 			}
 
 			m_questPlayer.Out.SendQuestListUpdate();

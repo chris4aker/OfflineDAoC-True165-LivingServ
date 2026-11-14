@@ -11588,13 +11588,29 @@ namespace DOL.GS
         /// <returns>true if added, false if player is already doing the quest!</returns>
         public bool AddQuest(AbstractQuest quest)
         {
-            if (QuestList.Count > 25)
-
-            if (IsDoingQuest(quest) != null)
+            // The journal holds 25 quests, and a quest the player is on isn't added again (Living Server, from
+            // HearthDAoC). The old "if (QuestList.Count > 25)" had no body, so the duplicate check below it ran only
+            // above 25 quests and the journal had no limit.
+            if (QuestJournal.IsFull(QuestList.Count))
                 return false;
 
-            if (!AvailableQuestIndexes.TryDequeue(out byte index))
-                index = (byte) QuestList.Count;
+            if (QuestList.Keys.Any(q => q.IsDoingQuest() && QuestJournal.Same(q, quest)))
+                return false;
+
+            // A freed slot is given only while no quest holds it: SendQuestListUpdate moves a quest waiting past the 25th
+            // slot (an older save with more than 25 active quests) into a freed slot but leaves that slot queued here.
+            byte index;
+
+            do
+            {
+                if (!AvailableQuestIndexes.TryDequeue(out index))
+                {
+                    index = QuestJournal.FreeIndex(QuestList.Values);
+                    break;
+                }
+            }
+            // ... and never a slot past the 25th (one freed there by a finished waiting quest would be hidden from the journal)
+            while (index >= QuestJournal.Capacity || QuestList.Values.Contains(index));
 
             QuestList.TryAdd(quest, index);
             quest.OnQuestAssigned(this);

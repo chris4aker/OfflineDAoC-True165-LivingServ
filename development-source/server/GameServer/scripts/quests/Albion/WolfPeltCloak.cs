@@ -342,7 +342,7 @@ namespace DOL.GS.Quests.Albion
                     RemoveItem(_don, m_questPlayer, _wolfPeltCloak);
                     _don.SayTo(player, "Well done! You've helped the children get over the harsh winter.");
 
-                    player.GainQuestExperience(200);
+                    player.GainQuestExperience(200, Name);
 
                     return;
                 }
@@ -404,7 +404,12 @@ namespace DOL.GS.Quests.Albion
             base.FinishQuest();
             GiveItem(_lynett, m_questPlayer, _wolfPeltCloak);
 
-            m_questPlayer.GainExperience(eXPSource.Quest, 50, true);
+            // Quest experience at your pace (Living Server, quest_xp_by_level): with the setting on these 50 points pay like
+            // every other quest; off, they go through the kill path (xp_rate and the zone bonus) as True 1.65 pays them.
+            if (!ServerProperties.Properties.QUEST_XP_BY_LEVEL)
+                m_questPlayer.GainExperience(eXPSource.Quest, 50, true);
+            else if (m_questPlayer.GainXP)
+                m_questPlayer.GainQuestExperience(50, Name);
             long money = Money.GetMoney(0, 0, 0, 0, 50);
             m_questPlayer.AddMoney(money, "You recieve {0} for your service.");
             InventoryLogging.LogInventoryAction("(QUEST;" + Name + ")", m_questPlayer, eInventoryActionType.Quest, money);

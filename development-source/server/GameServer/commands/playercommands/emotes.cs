@@ -364,6 +364,9 @@ namespace DOL.GS.Commands
 			SendEmote(client.Player, client.Player.TargetObject, emoteID, emoteMessages);
 			// a gamebot or companion answers a wave, bow, salute... in kind (BotEmotes165)
 			BotEmotes165.OnPlayerEmote(client.Player, client.Player.TargetObject, emoteID);
+			// A /beg at a beggar bot is asking it for coin (AutonomousBeggars).
+			if (emoteID == eEmote.Beg)
+				AutonomousBeggars.OnPlayerBegs(client.Player, client.Player.TargetObject);
 		}
 
 

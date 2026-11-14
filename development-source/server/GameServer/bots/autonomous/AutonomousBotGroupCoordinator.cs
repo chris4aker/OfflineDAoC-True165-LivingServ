@@ -128,6 +128,8 @@ public static partial class AutonomousBotGroupCoordinator
         public string ArrivalLoggedCampId { get; set; } = string.Empty;
         public Dictionary<string, long> RejectedDungeonCamps { get; } = new(StringComparer.Ordinal);
         public int WipePenalty { get; set; }
+        /// <summary>Wipes this party had (Living Server: AutonomousBotBonds remembers them).</summary>
+        public int Wipes { get; set; }
         public long? NoCampSinceTick { get; set; }
         public AutonomousGroupRecoveryState Recovery { get; } = new();
         public bool RecoveryRendezvousChosen { get; set; }
@@ -176,6 +178,7 @@ public static partial class AutonomousBotGroupCoordinator
         try
         {
             RealmEventNotices.Pulse(now);
+            AutonomousLivingServer.Pulse(now);   // Living Server: storylines, debates, rumours, memory and the rest of the talk layer
             RealmEventControls.Pulse();
             AutonomousRealmRaid.Pulse(now);
             AutonomousRealmRaid.RecruitForcedParty(now);
@@ -1698,7 +1701,7 @@ public static partial class AutonomousBotGroupCoordinator
                 ? releaseReason : "Shared group task expired");
 
         GameBot[] activeRoster = AutonomousBotRegistry.Snapshot()
-            .Where(bot => !bot.IsTemporaryGroupHelper && AutonomousObjectiveAssignments.Is(bot, objectiveKind))
+            .Where(bot => !bot.IsTemporaryGroupHelper && AutonomousObjectiveAssignments.Is(bot, objectiveKind) && !AutonomousBeggars.Is(bot))
             .ToArray();
         int groupedCount = activeRoster.Count(bot => bot.Group != null);
         // Allocation has already capped the GroupPve cohort at its population
@@ -1878,6 +1881,10 @@ public static partial class AutonomousBotGroupCoordinator
             Sessions[group] = session;
             GameBot[] formedMembers = BotMembers(group);
             WriteSessionMetadata(session, formedMembers);
+            // Living Server: the party's guildmates hear of it, and its members remember who they grouped with
+            AutonomousBotGuildSocial.OnGroupFormed(formedMembers, objectiveKind == eAutonomousObjectiveKind.RvR);
+            if (objectiveKind == eAutonomousObjectiveKind.GroupPve)
+                AutonomousBotBonds.OnPartyFormed(formedMembers);
             Log.Info($"AUTONOMOUS_GROUP_FORMED group={session.Id} realm={GlobalConstants.RealmToName(leader.Realm)} " +
                      $"size={formedMembers.Length} lockedSize={session.LockedSize} objective={objectiveKind} " +
                      $"members=\"{string.Join(",", formedMembers.Select(member => member.Name))}\" " +
@@ -2189,6 +2196,10 @@ public static partial class AutonomousBotGroupCoordinator
         }
         if (session.Recovery.Observe(RecoveryMembers(session, members, false), session.TaskClock.HasStarted))
         {
+            session.Wipes++;
+            // Living Server: a wipe is a story one of the party may tell the realm.
+            if (members.Length > 0 && Random.Shared.NextDouble() < 0.5)
+                AutonomousBotChatCoordinator.TellStory("wipe", members[Random.Shared.Next(members.Length)]);
             session.WipePenalty = session.ObjectiveKind == eAutonomousObjectiveKind.GroupPve
                 ? AutonomousGroupTargetPolicy.PenaltyAfterWipe((int)Math.Round(members.Average(member => member.Level)),
                     members.Length, session.WipePenalty, session.Camp?.TargetLevel ?? 0)
@@ -2413,8 +2424,12 @@ public static partial class AutonomousBotGroupCoordinator
             return;
         if (session.ObjectiveKind == eAutonomousObjectiveKind.GroupPve)
         {
+            GameBot[] waited = members.Where(member => !missing.Contains(member)).ToArray();
             foreach (GameBot member in missing)
+            {
                 LogNoShow(session, member, now);
+                AutonomousBotBonds.OnNoShow(waited, member, session.RendezvousName);   // Living Server: the party remembers who stood it up
+            }
             ReducePvePartyAfterNoShows(session, members, missing, now);
             return;
         }
@@ -2646,6 +2661,11 @@ public static partial class AutonomousBotGroupCoordinator
                 recoveryCount = member.PersistentRecord?.RecoveryCount ?? 0
             }).ToArray()
         }));
+        // Living Server: a party that ran its course leaves its members as friends; a bad one, less so (AutonomousBotBonds)
+        if (session.ObjectiveKind == eAutonomousObjectiveKind.GroupPve)
+            AutonomousBotBonds.OnPartyFinished(members, session.TaskClock.HasStarted,
+                session.TaskClock.HasExpired(GameLoop.GameLoopTime), session.Wipes,
+                session.Camp?.ZoneName ?? session.RendezvousName);
         session.Group.DisbandGroup();
         foreach (GameBot member in members)
         {

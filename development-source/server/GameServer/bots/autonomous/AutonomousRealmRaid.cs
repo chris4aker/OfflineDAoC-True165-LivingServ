@@ -220,7 +220,7 @@ namespace DOL.GS
         {
             lock (Sync) return Raids.TryGetValue(id, out var raid) && raid.Forced;
         }
-        public static bool IsEligible(GameBot bot) => bot != null && RealmRaidRecruitmentPolicy.Eligible(
+        public static bool IsEligible(GameBot bot) => bot != null && !AutonomousBeggars.Is(bot) && RealmRaidRecruitmentPolicy.Eligible(
             bot.Level, bot.IsAutonomousWorldBot, bot.IsTemporaryGroupHelper, bot.IsPlayerLedGroup);
         public static readonly Definition[] Definitions =
         [
@@ -1535,6 +1535,9 @@ namespace DOL.GS
             long cooldown = RealmRaidRecruitmentPolicy.EventCooldownMilliseconds(stoppedByPlayer, raid.Started, outcome == "Boss defeated");
             if (cooldown > 0)
                 Cooldowns[raid.Definition.Id] = now + cooldown;
+            // Living Server: the outcome goes on the realm's news board, so bots asked "how did the raid go" know
+            if (outcome is "Boss defeated" or "Defeated")
+                AutonomousChatNews.RaidOutcome(raid.Definition.Realm, raid.Definition.Name, raid.Boss?.Name, outcome == "Boss defeated");
             RealmEventNotices.Queue(raid.Definition.Id, raid.Definition.Realm, RealmEventBanter.RaidOutcome(raid.Definition.Name, outcome));
         }
 

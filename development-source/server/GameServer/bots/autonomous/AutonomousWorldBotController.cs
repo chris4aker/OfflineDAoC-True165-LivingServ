@@ -4222,6 +4222,7 @@ namespace DOL.GS
             _patrolDestination = null;
             _pendingStableChoice = null;
             bot.PersistentRecord.CurrentCampId = selected.Id;
+            AutonomousBotPersonality.RememberZone(bot, selected.ZoneName);   // Living Server: the bot remembers where it has hunted
             AutonomousCampCompetition.NoteAssigned(selected.Id, sharedGroup ? groupSize : 1);
             // veteran review M3: an outdoor solo camp makes its zone the bot's hunting ground (AutonomousHuntingGround)
             if (!sharedGroup && bot.Group == null && !selected.IsDungeon &&

@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Living Server Setup for Offline DAoC True 1.65: one exe that installs the game and the Living Server add-on, or adds
+    Living Server to a game the player already has. .NET Framework 4.7.2 (part of every supported Windows 10 and 11), so
+    it runs before the game and its own .NET exist. Built by tools/living-server/installer/build.py, which supplies the
+    two payloads:
+      payload/LivingServer.zip             the Living Server package (tools/living-server/make_package.py)
+      payload/Get-OfflineDAoC-True165.ps1  the game's own downloader (release/), pinned by SHA-256 in build.py
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>LivingServerSetup-True165</AssemblyName>
+    <RootNamespace>LivingServerSetup</RootNamespace>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Product>Offline DAoC True 1.65 Living Server Setup</Product>
+    <Company>Offline DAoC Living Server (fan project)</Company>
+    <Description>Installs Offline DAoC True 1.65 and the Living Server add-on</Description>
+    <Copyright>Free, non-commercial fan project. Not affiliated with Electronic Arts or Broadsword.</Copyright>
+    <Version>1.1.4</Version>
+    <Deterministic>true</Deterministic>
+    <PayloadDir Condition="'$(PayloadDir)' == ''">$(MSBuildThisFileDirectory)..\payload\</PayloadDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Management" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Runtime.Serialization" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The release check, digest check and package check the launcher's updates use (PackageUpdate.cs). -->
+    <Compile Include="..\..\..\..\development-source\tools\OfflineDaoc.Launcher\Updates\BuildVersion.cs" Link="Updates\BuildVersion.cs" />
+    <Compile Include="..\..\..\..\development-source\tools\OfflineDaoc.Launcher\Updates\ReleaseInfo.cs" Link="Updates\ReleaseInfo.cs" />
+    <Compile Include="..\..\..\..\development-source\tools\OfflineDaoc.Launcher\Updates\PackageDigest.cs" Link="Updates\PackageDigest.cs" />
+    <Compile Include="..\..\..\..\development-source\tools\OfflineDaoc.Launcher\Updates\PackageCheck.cs" Link="Updates\PackageCheck.cs" />
+    <Compile Include="..\..\..\..\development-source\tools\OfflineDaoc.Launcher\Updates\ReleaseFeed.cs" Link="Updates\ReleaseFeed.cs" />
+    <Compile Include="..\..\..\..\development-source\tools\OfflineDaoc.Launcher\Updates\HttpReleaseWeb.cs" Link="Updates\HttpReleaseWeb.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\hero.jpg" LogicalName="hero.jpg" />
+    <EmbeddedResource Include="Assets\header.jpg" LogicalName="header.jpg" />
+    <EmbeddedResource Include="Assets\shield.png" LogicalName="shield.png" />
+    <EmbeddedResource Include="Assets\stone.jpg" LogicalName="stone.jpg" />
+    <EmbeddedResource Include="Assets\app.ico" LogicalName="app.ico" />
+    <EmbeddedResource Include="Assets\shortcut.ico" LogicalName="shortcut.ico" />
+    <EmbeddedResource Include="$(PayloadDir)LivingServer.zip" LogicalName="LivingServer.zip" />
+    <EmbeddedResource Include="$(PayloadDir)Get-OfflineDAoC-True165.ps1" LogicalName="Get-OfflineDAoC-True165.ps1" />
+  </ItemGroup>
+</Project>

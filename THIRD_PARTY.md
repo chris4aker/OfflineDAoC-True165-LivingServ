@@ -34,6 +34,9 @@ upstream attribution.
   (GPL-3.0), directed and play-tested by chris4aker and coded with Claude (Anthropic). Its voice lines are new
   writing for that project. The gamebot membership list in Guild.cs is adapted from
   [stefanrows/OfflineDAoC](https://github.com/stefanrows/OfflineDAoC) (GPL-3.0).
+- Living Server Setup (tools/living-server/installer): its title lettering is set in Cinzel by The Cinzel Project Authors (SIL Open
+  Font License 1.1, its art/fonts/OFL-Cinzel.txt); its pictures are Living Server's splash painting and the Offline DAoC
+  launcher's art. It runs the game's own downloader, release/Get-OfflineDAoC-True165.ps1, unchanged.
 
 The original DAoC client, art, sound, maps and other third-party assets are not represented as authored by
 this project. Being noncommercial does not itself change third-party rights. The GPL server license is not a

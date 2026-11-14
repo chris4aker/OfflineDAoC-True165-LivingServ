@@ -11609,7 +11609,8 @@ namespace DOL.GS
                     break;
                 }
             }
-            while (QuestList.Values.Contains(index));
+            // ... and never a slot past the 25th (one freed there by a finished waiting quest would be hidden from the journal)
+            while (index >= QuestJournal.Capacity || QuestList.Values.Contains(index));
 
             QuestList.TryAdd(quest, index);
             quest.OnQuestAssigned(this);

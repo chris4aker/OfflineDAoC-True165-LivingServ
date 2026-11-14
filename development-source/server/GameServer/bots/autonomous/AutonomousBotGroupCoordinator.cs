@@ -182,6 +182,7 @@ public static partial class AutonomousBotGroupCoordinator
             RealmEventControls.Pulse();
             AutonomousRealmRaid.Pulse(now);
             AutonomousRealmRaid.RecruitForcedParty(now);
+            AutonomousEpicSpecialForces.Pulse(now);   // Living Server (off by default): arrivals and departures
             AutonomousRvrEventLayer.PulseDefense(now);
             KeepDoorRepair165.Pulse(now);   // holders repair damaged keep doors (every 20 s)
             RealmWarbandSupport.Pulse(now);

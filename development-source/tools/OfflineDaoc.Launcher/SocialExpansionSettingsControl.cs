@@ -54,6 +54,7 @@ internal sealed class SocialExpansionSettingsControl : UserControl
     private readonly CheckBox _questXp = Switch("Quests follow your range");
     private readonly CheckBox _epicTactics = Switch("Raid tactics");
     private readonly CheckBox _originalBosses = Switch("Original boss rules");
+    private readonly CheckBox _specialForces = Switch("Epic Special Forces");
     private readonly NumericUpDown _manaRate = Rate("Power regeneration rate");
     private readonly CheckBox _manaHalved = Switch("Half below 50% power");
     private readonly XpRow _playerXp = new("YOUR CHARACTERS", SocialExpansionSettings.SuggestedPlayerXp, "3× · 5× · 12×");
@@ -132,11 +133,12 @@ internal sealed class SocialExpansionSettingsControl : UserControl
         Add(living, _leeroy, null, "One end-game raid in twenty has a bot who charges the final boss early, yelling his name; the raid has to follow him in.");
 
         // True 1.65 edition: Living Server's changes to how gamebots play, each off until you turn it on.
-        var play = Card("HOW GAMEBOTS PLAY", DaocTheme.Gold, 4);
+        var play = Card("HOW GAMEBOTS PLAY", DaocTheme.Gold, 5);
         Add(play, _incomingFire, null, "Hit by you or another player, a gamebot takes 0.3–2.5 s to answer, as a person does. Off: True 1.65's instant reaction.");
         Add(play, _eraNames, null, "New gamebots get names like 2003's servers had: made-up, joke and first names, some xX and 420s. Existing names stay.");
         Add(play, _epicTactics, null, "Bot raids play Living Server's plans for eight epic bosses: Scurceol's orbs, Orshom's Fire, Aidon, Black Lady, Nosdoden, Xanxicar.");
         Add(play, _originalBosses, null, "Bosses get back 17 original OpenDAoC rules (Funus's weapons, Aroon's order, Govannon's 300,000 health...). Harder than True 1.65.");
+        Add(play, _specialForces, null, "After a Horn raid's first wipe at the final boss, up to 24 level-50 elites in handed-out epic gear join the retry.");
 
         var power = Card("POWER REGENERATION", DaocTheme.Gold, 3);
         Captioned(Caption("REGENERATION RATE", part: false), Add(power, null, WithUnit(_manaRate, "×"),
@@ -208,7 +210,7 @@ internal sealed class SocialExpansionSettingsControl : UserControl
         foreach (var box in new[] { _guilds, _guildSocial, _guildRecruit, _guildClaims, _guildEconomy, _guildAlliances, _playerGuildEconomy, _manaHalved,
                      _personalities, _voices, _debates,
                      _memory, _grats, _firsts, _death, _alarms, _nemesis, _breaks, _body, _beggars, _deeds, _storylines, _characters, _rumours, _holidays, _leeroy,
-                     _incomingFire, _eraNames, _questXp, _epicTactics, _originalBosses })
+                     _incomingFire, _eraNames, _questXp, _epicTactics, _originalBosses, _specialForces })
             box.CheckedChanged += (_, _) => Edited();
         _schedule.SelectedIndexChanged += (_, _) => Edited();
         _share.ValueChanged += (_, _) => Edited();
@@ -287,6 +289,7 @@ internal sealed class SocialExpansionSettingsControl : UserControl
         IncomingFireReaction = _incomingFire.Checked,
         EraNames = _eraNames.Checked,
         EpicTactics = _epicTactics.Checked,
+        EpicSpecialForces = _specialForces.Checked,
         // a hand-written list of switches stays as written while the box stays ticked
         OriginalBossMechanics = !_originalBosses.Checked ? "" : _saved.OriginalBossMechanics.Trim() != "" ? _saved.OriginalBossMechanics : "all",
         ManaRegenModifier = (double)_manaRate.Value,
@@ -334,6 +337,7 @@ internal sealed class SocialExpansionSettingsControl : UserControl
         _incomingFire.Checked = settings.IncomingFireReaction;
         _eraNames.Checked = settings.EraNames;
         _epicTactics.Checked = settings.EpicTactics;
+        _specialForces.Checked = settings.EpicSpecialForces;
         _originalBosses.Checked = settings.OriginalBossMechanics.Trim() != "";
         _loading = false;
     }
@@ -454,6 +458,7 @@ internal sealed class SocialExpansionSettingsControl : UserControl
         if (s.IncomingFireReaction) on.Add("gamebots react like players");
         if (s.EraNames) on.Add("2003-style names");
         if (s.EpicTactics) on.Add("raid tactics");
+        if (s.EpicSpecialForces) on.Add("Epic Special Forces");
         if (s.OriginalBossMechanics.Trim() != "") on.Add("original boss rules");
         if (s.PlayerXpByLevel != "" || s.BotXpByLevel != "") on.Add(s.QuestXpByLevel ? "XP by level (quests too)" : "XP by level");
         if (on.Count == 0)

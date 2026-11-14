@@ -140,20 +140,30 @@ public static partial class AutonomousBotGroupCoordinator
         return true;
     }
 
-    public static bool FormForcedRaidParty(string eventId, GameBot[] members)
+    public static bool FormForcedRaidParty(string eventId, GameBot[] members) => FormForcedRaidParty(eventId, members, out _);
+
+    /// <summary>Forms a reserved roster into a raid party, or says why not (Living Server's Epic Special Forces log it).</summary>
+    public static bool FormForcedRaidParty(string eventId, GameBot[] members, out string refusal)
     {
-        if (members.Length is not (4 or 8) || members.Any(b => !AutonomousRealmRaid.IsEligible(b) || !b.IsAlive ||
-            !AutonomousRealmRaid.IsReservedFor(b, eventId) || b.InCombat) ||
-            !TryAssignExpeditionRoles(members, members[0], out _)) return false;
+        members ??= [];
+        refusal = null;
+        if (members.Length is not (4 or 8)) { refusal = $"the roster has {members.Length} bots, not 4 or 8"; return false; }
+        if (members.Any(b => !AutonomousRealmRaid.IsEligible(b) || !b.IsAlive || !AutonomousRealmRaid.IsReservedFor(b, eventId) || b.InCombat))
+        { refusal = "a member is not an eligible, living, reserved level 50 out of combat"; return false; }
+        if (!TryAssignExpeditionRoles(members, members[0], out _)) { refusal = "the classes do not fill an expedition party's roles"; return false; }
+        // Living Server's Epic Special Forces (off by default): made for this raid, with no party or task of their own
+        bool specialForces = members.All(b => b.IsEpicSpecialForce);
         // Validate the raid post before cancelling anybody's work.
-        if (!AutonomousRealmRaid.TryGetForcedStaging(eventId, out SharedCamp staging)) return false;
+        if (!AutonomousRealmRaid.TryGetForcedStaging(eventId, specialForces, out SharedCamp staging))
+        { refusal = "the raid has no free party post"; return false; }
         bool forced = AutonomousRealmRaid.IsForcedExpedition(eventId);
         lock (Sync)
         {
             // Reservations normally exclude these applicants from matchmaking.
             // Still fail closed if one acquired a party before this commit.
-            if (!forced && members.Any(b => b.Group != null ||
-                    !AutonomousObjectiveAssignments.Is(b, eAutonomousObjectiveKind.GroupPve))) return false;
+            if (!forced && !specialForces && members.Any(b => b.Group != null ||
+                    !AutonomousObjectiveAssignments.Is(b, eAutonomousObjectiveKind.GroupPve)))
+            { refusal = "a member already has a party or no group task"; return false; }
             foreach (Group previous in members.Select(b => b.Group).Where(g => g != null).Distinct().ToArray())
             {
                 if (AutonomousRealmRaid.GetView(previous) != null) return false;
@@ -170,7 +180,8 @@ public static partial class AutonomousBotGroupCoordinator
             GroupMgr.AddGroup(group);
             foreach (GameBot bot in members) group.AddMember(bot);
             Session session = group.MemberCount == members.Length ? NewSession(group, members[0], members.Length, eAutonomousObjectiveKind.GroupPve, staging) : null;
-            if (session == null || !AutonomousRealmRaid.CommitForcedParty(eventId, group))
+            if (session == null) refusal = $"the group took {group.MemberCount} of {members.Length} members";
+            if (session == null || !AutonomousRealmRaid.CommitForcedParty(eventId, group, out refusal))
             {
                 group.DisbandGroup();
                 Log.Warn($"REALM_RAID_FORCED_PARTY_RETRY event={eventId} reason=staging-or-group-validation members={string.Join(',', members.Select(b => b.Name))}");

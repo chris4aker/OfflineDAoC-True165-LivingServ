@@ -36,6 +36,13 @@ public static class RealmEventRecords
             row=row with {Phase=phase,Details=Compose(battle,DateTime.UtcNow,false),Assigned=assigned,Present=present};Active[eventId]=row;Pending[row.Id]=row;
         }
     }
+    /// <summary>An event's finished runs with how many Epic Special Forces joined each (RealmEventRecordStore.Results).
+    /// File I/O: off the game loop.</summary>
+    public static List<(string Outcome,int SpecialForces)> FinishedResults(string eventId,int limit,bool automaticOnly=false)
+    {
+        try{return RealmEventRecordStore.Results(PathName,eventId,limit,automaticOnly);}
+        catch(Exception){return new();}
+    }
     public static void Finish(string eventId,string outcome,string details,int assigned=-1,int present=-1)
     {
         lock(Sync)if(Active.Remove(eventId,out var row))

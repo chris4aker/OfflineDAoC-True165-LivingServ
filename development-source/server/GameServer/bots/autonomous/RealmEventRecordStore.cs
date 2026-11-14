@@ -72,4 +72,46 @@ public static class RealmEventRecordStore
         while(reader.Read())rows.Add(new(reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetString(4),reader.GetString(5),reader.GetString(6),reader.GetString(7),reader.GetString(8),reader.GetString(9),reader.GetInt32(10),reader.GetInt32(11)));
         return(rows,count);
     }
+    // ---- Living Server's Epic Special Forces (off by default): what a raid's row says about them, written only while
+    // they are switched on (AutonomousEpicSpecialForces.Enabled), so the ledger reads as before with them off.
+    /// <summary>Details of a raid started from the launcher: its result is not part of the encounter's record.</summary>
+    public const string ForcedRaidPrefix="Forced raid: ";
+    /// <summary>The end of a raid's details when the Epic Special Forces joined it.</summary>
+    public const string SpecialForcesMarker=" Epic Special Forces joined: ";
+    public static string WithSpecialForces(string details,int joined)=>joined>0?$"{details}{SpecialForcesMarker}{joined}.":details;
+    /// <summary>How many Epic Special Forces joined the raid these details describe (0 when the details don't say).</summary>
+    public static int SpecialForcesIn(string details)=>NumberAfter(details,SpecialForcesMarker)??0;
+    /// <summary>The end of a raid's details: how many times it wiped at its final encounter.</summary>
+    public const string WipesMarker=" Wipes: ";
+    public static string WithWipes(string details,int wipes)=>$"{details}{WipesMarker}{Math.Max(0,wipes)}.";
+    public static int? WipesIn(string details)=>NumberAfter(details,WipesMarker);
+    private static int? NumberAfter(string details,string marker)
+    {
+        int at=details?.LastIndexOf(marker,StringComparison.Ordinal)??-1;
+        if(at<0)return null;
+        int start=at+marker.Length,end=start;
+        while(end<details.Length&&char.IsDigit(details[end]))end++;
+        return end>start&&int.TryParse(details.AsSpan(start,end-start),out int value)?value:null;
+    }
+    /// <summary>The raid record's name for a time-out with no wipe: neither a win nor a loss.</summary>
+    public const string TimedOutWithoutWipe="Timed out without a wipe";
+    /// <summary>The outcome a raid's record keeps: a time-out after one or more wipes is a loss; without one it is no result.</summary>
+    public static string RecordOutcome(string outcome,int wipes)=>outcome=="Timed out"&&wipes<=0?TimedOutWithoutWipe:outcome;
+    public static string RecordOutcome(string outcome,string details)=>WipesIn(details) is int wipes?RecordOutcome(outcome,wipes):outcome;
+    /// <summary>An event's last <paramref name="limit"/> finished runs, oldest first, as the raid record reads them, with how
+    /// many Epic Special Forces joined each; <paramref name="automaticOnly"/> leaves out raids started from the launcher.</summary>
+    public static List<(string Outcome,int SpecialForces)> Results(string path,string eventId,int limit,bool automaticOnly=false)
+    {
+        var results=new List<(string,int)>();
+        if(!File.Exists(path))return results;
+        using var connection=Open(path,true);using var command=connection.CreateCommand();
+        command.CommandText="SELECT count(*) FROM sqlite_master WHERE type='table' AND name='Events'";
+        if((long)command.ExecuteScalar()==0)return results;
+        command.CommandText="SELECT Outcome,Details FROM Events WHERE EventId=@event AND EndedUtc<>''"+(automaticOnly?" AND substr(Details,1,length(@forced))<>@forced":"")+" ORDER BY StartedUtc DESC,Id DESC LIMIT @limit";
+        command.Parameters.AddWithValue("@event",eventId);command.Parameters.AddWithValue("@limit",limit);command.Parameters.AddWithValue("@forced",ForcedRaidPrefix);
+        using var reader=command.ExecuteReader();
+        while(reader.Read())results.Add((RecordOutcome(reader.GetString(0),reader.GetString(1)),SpecialForcesIn(reader.GetString(1))));
+        results.Reverse();
+        return results;
+    }
 }

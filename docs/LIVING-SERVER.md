@@ -100,6 +100,7 @@ parts that change what a bot does (firsts, death, alarms, nemesis) are off until
 | `bot_guilds_enabled` and the other `bot_guild_*` | off | Gamebots found and run their own realm guilds (below). |
 | `bot_epic_encounter_tactics` | off | Bot raids play Living Server's tactics for eight epic encounters, on top of True 1.65's boss rules. |
 | `epic_original_mechanics` | empty | Original OpenDAoC boss rules to turn back on, by name or `all` (17 switches; each makes its boss harder). |
+| `bot_epic_special_forces` | off | Up to 24 level-50 Epic Special Forces join a Horn raid's retry after its first wipe at the final encounter (below). |
 | `bot_chat_period_channels` | on | True 1.65's own switch: bot talk on the period channels (below). Off: everything on `<Faction>`. |
 
 The launcher's **Living Server** tab sets all of these (with the server stopped); its suggested settings turn on the
@@ -117,10 +118,27 @@ on /broadcast to the players of the realm in the speaker's region, questions on 
 storyline stays on the channel and in the region its first line went to, so a /broadcast scene is heard where it
 started and nowhere else. Bots answering a GM's /faction line answer on /faction.
 
+**Epic Special Forces** (`bot_epic_special_forces`, off; not part of the suggested settings): each realm's elite
+guild of level-50 gamebots. With the switch on, a Horn raid's first wipe at its final encounter (a dragon, or the last
+boss of an epic dungeon, Summoner's Hall or Darkness Falls) calls them for the retry. They arrive at the raid's muster
+hub and walk in like late raiders, gathering and going in as True 1.65's reinforcement wave of eight. True 1.65's own
+rule still ends the battle at the third wipe. How many come is set by that encounter's record in the realm event
+ledger: 24 to start, a party (8) fewer after each win they helped, never under 8, a party more after each defeat; an
+encounter lost the last two times brings them from the start. Raids started from the launcher are left out of the
+record. They come on top of the raid's 300 bots and 38 parties (three parties of their own).
+
+They are the one exception to True 1.65's rule that gamebots earn what they wear (AGENTS rule 4): they arrive in the
+/spawn companions' endgame kit, fully trained, at full health and power, as Living Server's owner decided for Living
+Server. Every other player rule applies to them: they fight, die, release and rest like any gamebot. Each is made for
+that raid only and lives in memory: never saved, never in the roster or the population count, no loot or coin (the
+realm's own raiders and the horn sounder keep every drop), gone when the raid ends or the server stops. While the
+switch is off the ledger's rows read exactly as before; with it on a raid's row also says how many wipes it took and
+how many Special Forces joined.
+
 ## Not carried over
 
 **Left behind on purpose** (they break True 1.65's rules, or True 1.65 has its own):
-- Epic Special Forces (gamebots handed epic gear) and faster power regeneration (the tab keeps True 1.65's rate).
+- Faster power regeneration (the tab keeps True 1.65's rate).
 - The Atlas daily quests and the Hearth quest chains, Living Server's quest markers and journal: True 1.65 has its own.
 - Bot logins and logouts by schedule, "brb" breaks and linkdeads: True 1.65's population system does this.
 - Flanking, and Living Server's fixes to 0.37's gamebot AI where True 1.65 has its own (the port log lists each).
@@ -132,7 +150,7 @@ started and nowhere else. Bots answering a GM's /faction line answer on /faction
   would change how True 1.65's gamebots hunt, so they wait for a play test.
 
 **Later parts of Living Server:**
-- The Epic Special Forces and Living Server's quest journal, epic chains and quest fixes (in progress).
+- Living Server's quest journal, epic chains and quest fixes (in progress).
 - From Living Server 1.2, once it is released: bot-led groups, RvR perception, the lore, raid skill.
 - The route fixes and the diagnostics.
 

@@ -119,7 +119,7 @@ namespace DOL.GS
             player.ObjectState == GameObject.eObjectState.Active && player.CurrentRegionID == drop.CurrentRegionID &&
             player.IsWithinRadius(drop, WorldMgr.VISIBILITY_DISTANCE);
 
-        private static bool Eligible(GameBot bot, GameObject drop) => bot.IsAutonomousWorldBot && !bot.IsTemporaryGroupHelper &&
+        private static bool Eligible(GameBot bot, GameObject drop) => bot.IsAutonomousWorldBot && !bot.IsTemporaryGroupHelper && !bot.IsEpicSpecialForce &&
             bot.ObjectState == GameObject.eObjectState.Active && bot.CurrentRegionID == drop.CurrentRegionID &&
             bot.IsWithinRadius(drop, WorldMgr.VISIBILITY_DISTANCE) &&
             AutonomousBotRegistry.TryGet(bot.DatabaseID, out var current) && ReferenceEquals(current, bot);

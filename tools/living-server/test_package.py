@@ -76,7 +76,7 @@ class PackageScripts(unittest.TestCase):
 
     def run_script(self, top, script, *extra):
         env = dict(os.environ, DOTNET_ROLL_FORWARD="Major")
-        p = subprocess.run([PWSH, "-NoProfile", "-File", str(top / script), "-GameFolder", str(self.game), "-NoPause", *extra],
+        p = subprocess.run([PWSH, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(top / script), "-GameFolder", str(self.game), "-NoPause", *extra],
                            capture_output=True, text=True, env=env, timeout=120)
         return p.returncode, p.stdout + p.stderr
 

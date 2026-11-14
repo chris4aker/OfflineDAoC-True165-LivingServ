@@ -1,0 +1,109 @@
+# Living Server for True 1.65: builds and tests what needs Windows, then makes the package and Setup.
+#  - the server and its tests (tests that read an installed game's files skip themselves without one);
+#  - the launcher and its tests (the Living Server tab, the Herald, the update check: WinForms, so Windows only);
+#  - the package (tools/living-server/make_package.py, with the launcher's OfflineDAoC.exe) and its INSTALL/ROLLBACK
+#    scripts' tests in Windows PowerShell 5.1, as players run them, and in PowerShell 7;
+#  - Living Server Setup (tools/living-server/installer), what it would install, and pictures of every page.
+# Nothing here downloads the game or runs a server. Results: notices on the run page, files under Artifacts.
+name: living-server
+
+on:
+  push:
+    branches: ['living-server/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build the server
+        shell: bash
+        run: |
+          cp development-source/server/CoreServer/config/serverconfig.example.xml development-source/server/CoreServer/config/serverconfig.xml
+          dotnet build "development-source/server/Dawn of Light.sln" -c Release -nologo -p:SourceRevisionId=${{ github.sha }}
+
+      - name: Test the server
+        id: server-tests
+        continue-on-error: true
+        shell: bash
+        run: dotnet test development-source/server/Tests/Tests.csproj -c Release --no-build --logger "trx;LogFileName=server.trx"
+
+      - name: Report the server test counts
+        if: always()
+        shell: bash
+        run: |
+          trx=$(find . -path '*TestResults*' -name 'server.trx' | head -n 1)
+          if [ -z "$trx" ]; then echo "::warning title=Server tests::no results file"; exit 0; fi
+          counters=$(grep -o '<Counters [^>]*>' "$trx" | head -n 1 || true)
+          get() { echo "$counters" | grep -o " $1=\"[0-9]*\"" | grep -o '[0-9]*' || true; }
+          echo "::notice title=Server tests::total $(get total), passed $(get passed), failed $(get failed)"
+          failed=$(grep -o '<UnitTestResult [^>]*outcome="Failed"[^>]*>' "$trx" | grep -o 'testName="[^"]*"' | sed 's/testName=//; s/"//g' | head -n 10 | paste -sd ';' - || true)
+          if [ -n "$failed" ]; then echo "::warning title=Failed server tests::$failed"; fi
+
+      - name: Build and test the launcher
+        shell: bash
+        run: |
+          dotnet build development-source/tools/OfflineDaoc.Launcher/OfflineDaoc.Launcher.csproj -c Release -nologo -p:SourceRevisionId=${{ github.sha }}
+          out=$(dotnet test development-source/tools/OfflineDaoc.Launcher.Tests/OfflineDaoc.Launcher.Tests.csproj -c Release -nologo 2>&1) || { echo "$out"; echo "::error title=Launcher tests::failed"; exit 1; }
+          echo "$out" | tail -n 5
+          echo "::notice title=Launcher tests::$(echo "$out" | grep -E '(Passed|Failed)!' | tail -n 1)"
+
+      - name: Make the Living Server package
+        shell: bash
+        run: python -I tools/living-server/make_package.py --commit ${{ github.sha }} --branch "${{ github.ref_name }}"
+
+      - name: Test the package scripts (Windows PowerShell 5.1, then PowerShell 7)
+        shell: bash
+        run: |
+          PWSH=powershell.exe python -I tools/living-server/test_package.py
+          PWSH=pwsh python -I tools/living-server/test_package.py
+
+      - name: Build Living Server Setup
+        shell: bash
+        run: python -I tools/living-server/installer/build.py --package "$(ls dist/OfflineDAoC-True165-LivingServer-*.zip | head -n 1)"
+
+      - name: Setup's own checks and pictures of every page (100 % and 150 %)
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem dist/LivingServer-True165-Setup-*.exe | Select-Object -First 1
+          New-Item -ItemType Directory -Path shots -Force | Out-Null
+          $p = Start-Process $exe.FullName -ArgumentList '--info', '--no-update', '--log', 'shots/info.log' -Wait -PassThru
+          Get-Content shots/info.log | Select-Object -Last 3
+          if ($p.ExitCode -ne 0 -or !(Select-String -Path shots/info.log -Pattern 'WOULD INSTALL' -Quiet)) { throw "Setup --info failed (exit $($p.ExitCode))" }
+          foreach ($s in '1', '1.5') {
+            $p = Start-Process $exe.FullName -ArgumentList '--screenshots', "shots/scale-$s", '--scale', $s, '--log', "shots/scale-$s.log" -Wait -PassThru
+            Write-Host "scale $s exit $($p.ExitCode)"
+            Get-Content "shots/scale-$s.log" | Select-Object -Last 3
+          }
+          $n = @(Get-ChildItem -Recurse shots/*.png).Count
+          Write-Host "::notice title=Setup pictures::$n pictures"
+          if ($n -eq 0) { throw 'Setup drew no pictures' }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: living-server-true165
+          path: |
+            dist/*.zip
+            dist/*.exe
+            shots/
+            **/TestResults/*.trx
+          if-no-files-found: warn
+
+      - name: Fail if a server test failed
+        if: steps.server-tests.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "::error title=Server tests::some failed (see the warning above for which)"
+          exit 1

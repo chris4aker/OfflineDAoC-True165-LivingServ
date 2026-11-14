@@ -206,12 +206,13 @@ public static partial class AutonomousRealmRaid
     private static readonly ConditionalWeakTable<Raid, Dictionary<int, long>> FailedSlots = new();
 
     /// <summary>For TryJoin, TryGetForcedStaging and CommitForcedParty (caller holds the raid lock).</summary>
-    private static bool TryPlaceableSlot(Raid raid, out int slot, out Vector3 staging, out Vector3 hubPost)
+    private static bool TryPlaceableSlot(Raid raid, out int slot, out Vector3 staging, out Vector3 hubPost, bool specialForces = false)
     {
         long now = GameLoop.GameLoopTime;
         Dictionary<int, long> failedUntil = FailedSlots.GetValue(raid, _ => new Dictionary<int, long>());
         Vector3 foundStaging = default, foundHub = default;
-        slot = NextPlaceableSlot(RealmRaidRecruitmentPolicy.MaximumParties,
+        // the Epic Special Forces (Living Server, off by default) may also take the three slots past the realm's 38
+        slot = NextPlaceableSlot(specialForces ? RealmRaidRecruitmentPolicy.FormationSlots : RealmRaidRecruitmentPolicy.MaximumParties,
             s => raid.Parties.Values.Any(p => p.FormationSlot == s),
             s => failedUntil.GetValueOrDefault(s) > now,
             s => TryStaging(raid, s, out foundStaging) && TryHubPost(raid, s, out foundHub),

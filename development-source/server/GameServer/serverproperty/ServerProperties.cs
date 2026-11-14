@@ -2432,6 +2432,12 @@ namespace DOL.GS.ServerProperties
 		public static bool BOT_EPIC_ENCOUNTER_TACTICS;
 
 		/// <summary>
+		/// Living Server's Epic Special Forces (AutonomousEpicSpecialForces), off by default in True 1.65.
+		/// </summary>
+		[ServerProperty("bots", "bot_epic_special_forces", "Living Server, off by default in True 1.65: after a Horn raid's first wipe at its final encounter, up to 24 of the realm's Epic Special Forces (level-50 gamebots in the companions' endgame kit, made for that raid only and never saved) join it, fewer after wins they helped; an encounter lost here the last two times brings them from the start. Their handed-out gear is the one exception to gamebots earning their armor. Off: True 1.65's own wipe rules only.", false)]
+		public static bool BOT_EPIC_SPECIAL_FORCES;
+
+		/// <summary>
 		/// Living Server's restored original boss mechanics (EpicEncounterMechanics), by switch name.
 		/// </summary>
 		[ServerProperty("world", "epic_original_mechanics", "Living Server, empty (off) by default in True 1.65: original OpenDAoC boss mechanics to turn back on, by switch name, comma separated (AllowHorsemenTetherHeal, AllowFunusWeaponPuzzle, AllowSacristanPatrol, AllowSoulReckonerFullShield, AllowSoulReckonerSmallRoom, AllowAroonDamageOrder, AllowGalladoriaBridgeSpot, AllowFullFirePatches, AllowEarthmenderClassPuzzle, AllowEarthmendersPassive, AllowEarthmenderQuickReset, AllowEarthmenderMutualHeal, AllowBeathaHealsXaga, AllowFairyFlight, AllowGovannonFullHealth, AllowKvasirColdHeal, AllowTuscarTwinHeal), or all. Each makes its boss harder than True 1.65 has it. Read at server start.", "")]

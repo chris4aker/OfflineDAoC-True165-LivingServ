@@ -82,6 +82,8 @@ namespace DOL.GS
             public long BattleStartTick;
             public long LastProgressTick;
             public int FailedFinalEngagements;
+            /// <summary>Living Server's Epic Special Forces (off by default): the final wipes they were already asked for.</summary>
+            public int SpecialForcesWipesSeen;
             public readonly Dictionary<GameNPC, bool> FinalEngaged = new();
             public readonly Dictionary<GameNPC, int> FinalLow = new();
             /// <summary>Darkness Falls closed to the realm during the battle: since when fewer than 8 raiders are inside.</summary>
@@ -386,6 +388,11 @@ namespace DOL.GS
                                 raid.LeeroyName = leeroy.Name;
                             raid.BattleStartTick = now;
                             if (raid.Horn) RallyGuests165.OnRaidStarted(raid.Definition.Id);
+                            // Living Server (off by default): an encounter lost here the last two times brings the Epic
+                            // Special Forces from the start.
+                            if (raid.Horn && !raid.Forced && AutonomousEpicSpecialForces.ComesFromStart(raid.Definition.Id))
+                                AutonomousEpicSpecialForces.Request(raid.Definition.Id, raid.Definition.Name, raid.Definition.Realm,
+                                    "the last two raids here were beaten back");
                             raid.Deadline = raid.Forced ? long.MaxValue : now + RealmRaidRecruitmentPolicy.BattleMilliseconds;
                             RealmEventRecords.Progress(raid.Definition.Id, "Battle", "Expedition began advancing to the encounter.", raid.Support.Length, present);
                             RealmEventNotices.Queue(raid.Definition.Id, raid.Definition.Realm,
@@ -471,6 +478,15 @@ namespace DOL.GS
             int wipes = raid.DungeonRoute?.FinalWipes ?? raid.FailedFinalEngagements;
             if (RealmRaidRecruitmentPolicy.HornBattleFailed(wipes))
                 return $"Failed: the raid was beaten back from the final encounter {wipes} times.";
+            // Living Server (off by default): the first wipe at the final encounter asks for the Epic Special Forces for the
+            // retry (one call per raid; they arrive on the next coordinator pulse and walk in like late raiders).
+            if (wipes > raid.SpecialForcesWipesSeen)
+            {
+                raid.SpecialForcesWipesSeen = wipes;
+                if (AutonomousEpicSpecialForces.SpecialForcesAnswer(wipes, raid.Forced))
+                    AutonomousEpicSpecialForces.Request(raid.Definition.Id, raid.Definition.Name, raid.Definition.Realm,
+                        $"a wipe at the final encounter ({wipes} of {RealmRaidRecruitmentPolicy.HornFailedFinalEngagements})");
+            }
             if (RealmRaidRecruitmentPolicy.HornBattleStalled(raid.BattleStartTick, raid.LastProgressTick, now))
                 return $"Timed out: no encounter was defeated for {RealmRaidRecruitmentPolicy.HornBattleStallMilliseconds / 60_000} minutes.";
             return null;
@@ -517,7 +533,7 @@ namespace DOL.GS
             lock (Sync)
             {
                 if (Membership.TryGetValue(leader.Group, out Raid joined)) { view = joined.Parties[leader.Group].View; return true; }
-                Raid raid = Raids.Values.FirstOrDefault(r => r.Definition.Realm == leader.Realm && !r.Forced && r.Parties.Count < RealmRaidRecruitmentPolicy.MaximumParties);
+                Raid raid = Raids.Values.FirstOrDefault(r => r.Definition.Realm == leader.Realm && !r.Forced && RealmParties(r) < RealmRaidRecruitmentPolicy.MaximumParties);
                 if (raid == null && Raids.Values.Any(r => r.Definition.Realm == leader.Realm)) return false;
                 if (raid == null)
                 {
@@ -990,14 +1006,21 @@ namespace DOL.GS
             }
         }
 
-        public static bool TryGetForcedStaging(string id, out AutonomousBotGroupCoordinator.SharedCamp camp)
+        public static bool TryGetForcedStaging(string id, out AutonomousBotGroupCoordinator.SharedCamp camp) =>
+            TryGetForcedStaging(id, false, out camp);
+
+        /// <summary>As above; <paramref name="specialForces"/>: a party of the Epic Special Forces, which comes on top of
+        /// the realm's 38 parties (Living Server, off by default).</summary>
+        public static bool TryGetForcedStaging(string id, bool specialForces, out AutonomousBotGroupCoordinator.SharedCamp camp)
         {
             camp = null;
             lock (Sync)
             {
-                if (!Raids.TryGetValue(id, out var raid) || raid.Parties.Count >= RealmRaidRecruitmentPolicy.MaximumParties) return false;
+                if (!Raids.TryGetValue(id, out var raid)) return false;
+                if (specialForces ? SpecialForcesParties(raid) >= AutonomousEpicSpecialForces.MaximumParties
+                        : RealmParties(raid) >= RealmRaidRecruitmentPolicy.MaximumParties) return false;
                 // one unplaceable slot no longer blocks every later party (epic-routes 7)
-                if (!TryPlaceableSlot(raid, out int slot, out _, out Vector3 staging))
+                if (!TryPlaceableSlot(raid, out int slot, out _, out Vector3 staging, specialForces))
                 {
                     if (GameLoop.GameLoopTime >= raid.NextPostWarning)
                     {
@@ -1014,18 +1037,34 @@ namespace DOL.GS
             }
         }
 
-        public static bool CommitForcedParty(string id, Group group)
+        public static bool CommitForcedParty(string id, Group group) => CommitForcedParty(id, group, out _);
+
+        public static bool CommitForcedParty(string id, Group group, out string refusal)
         {
             lock (Sync)
             {
-                if (!Raids.TryGetValue(id, out var raid) ||
-                    raid.Parties.Count >= RealmRaidRecruitmentPolicy.MaximumParties || Membership.ContainsKey(group)) return false;
+                refusal = null;
+                if (!Raids.TryGetValue(id, out var raid)) { refusal = "the raid is not running"; return false; }
+                if (Membership.ContainsKey(group)) { refusal = "the group is already in a raid"; return false; }
                 var members = group.GetMembersInTheGroup().OfType<GameBot>().ToArray();
-                if (members.Length is not (4 or 8) || raid.Support.Length + members.Length > RealmRaidRecruitmentPolicy.MaximumBots ||
-                    members.Any(b => !IsEligible(b) || b.Realm != raid.Definition.Realm ||
-                    Reservations.GetValueOrDefault(b.DatabaseID) != id)) return false;
-                if (!TryPlaceableSlot(raid, out int slot, out Vector3 staging, out Vector3 hubPost)) return false;
+                // Living Server's Epic Special Forces come on top of the realm's own raiders: the 38-party and 300-bot
+                // limits are the realm's, and they have three parties of their own.
+                bool specialForces = IsSpecialForcesParty(members);
+                if ((refusal = RealmRaidRecruitmentPolicy.PartyCapRefusal(specialForces, RealmParties(raid), RealmBots(raid),
+                        SpecialForcesParties(raid), members.Length)) != null) return false;
+                if (members.Length is not (4 or 8)) { refusal = $"the group has {members.Length} bots, not 4 or 8"; return false; }
+                if (members.Any(b => !IsEligible(b) || b.Realm != raid.Definition.Realm ||
+                    Reservations.GetValueOrDefault(b.DatabaseID) != id)) { refusal = "a member is not an eligible, reserved level 50 of the realm"; return false; }
+                if (!TryPlaceableSlot(raid, out int slot, out Vector3 staging, out Vector3 hubPost, specialForces))
+                { refusal = $"no free formation slot with a staging and hub post (parties={raid.Parties.Count})"; return false; }
                 var party = new Party { Members = members, FormationSlot = slot, Staging = staging, HubPost = hubPost, Target = members.Length };
+                // The Special Forces arrive at the hub after the raid has left it, and walk in like late members (the
+                // reinforcement wave of AutonomousRealmRaid.Reinforcements).
+                if (specialForces && (raid.HubDeparted || raid.Started))
+                {
+                    party.Departed = true;
+                    foreach (GameBot b in members) party.CatchingUp.Add(b.DatabaseID);
+                }
                 raid.Parties[group] = party;
                 Membership[group] = raid;
                 DefenseGroups[group] = 0;
@@ -1033,6 +1072,36 @@ namespace DOL.GS
                 UpdateView(raid, party);
                 return true;
             }
+        }
+
+        /// <summary>A party made only of the Epic Special Forces (they come on top of the realm's limits).</summary>
+        private static bool IsSpecialForcesParty(GameBot[] members) => members.Length > 0 && members.All(b => b.IsEpicSpecialForce);
+        private static int RealmParties(Raid raid) => raid.Parties.Values.Count(p => !IsSpecialForcesParty(p.Members));
+        private static int SpecialForcesParties(Raid raid) => raid.Parties.Values.Count(p => IsSpecialForcesParty(p.Members));
+        private static int RealmBots(Raid raid) => raid.Support.Count(b => b is not GameBot { IsEpicSpecialForce: true });
+
+        /// <summary>Where the Epic Special Forces arrive for a running raid: its muster hub.</summary>
+        public static bool TryGetSpecialForcesPost(string id, out ushort region, out Vector3 point)
+        {
+            region = 0; point = default;
+            lock (Sync)
+            {
+                if (!Raids.TryGetValue(id, out var raid) || raid.Hub == null) return false;
+                region = raid.Hub.Region;
+                point = raid.Hub.Center;
+                return true;
+            }
+        }
+
+        public static bool IsRunning(string id)
+        {
+            lock (Sync) return Raids.ContainsKey(id);
+        }
+
+        /// <summary>A Special Forces member is reserved for its raid like a recruit, so it can be formed into a party.</summary>
+        public static void ReserveSpecialForce(GameBot bot, string id)
+        {
+            if (bot?.IsEpicSpecialForce == true) Reservations[bot.DatabaseID] = id;
         }
 
         private static bool Available(string id) => !Raids.ContainsKey(id) &&
@@ -1534,8 +1603,17 @@ namespace DOL.GS
                 reason.StartsWith("Failed:") ? "Failed" : reason.Contains("four-hour") || reason.StartsWith("Timed out") ? "Timed out" :
                 raid.Definition.IsDungeon ? raid.DungeonRoute?.Complete == true ? "Boss defeated" : "Ended (unconfirmed)" :
                 !raid.Boss.IsAlive ? "Boss defeated" : "Encounter unavailable";
-            RealmEventRecords.Finish(raid.Definition.Id, outcome, reason, raid.Support.Length);
-            Log.Info($"REALM_RAID_ENDED event={raid.Definition.Id} outcome=\"{outcome}\" support={raid.Support.Length} reason=\"{reason}\"");
+            // Living Server's Epic Special Forces (off by default): the ledger row says whether they joined and how many
+            // wipes it took, and the encounter's record takes the result (a raid started from the launcher is not part of it).
+            int wipes = raid.DungeonRoute?.FinalWipes ?? raid.FailedFinalEngagements;
+            int specialForcesJoined = AutonomousEpicSpecialForces.Joined(raid.Definition.Id);
+            string details = !AutonomousEpicSpecialForces.Enabled && specialForcesJoined == 0 ? reason :
+                RealmEventRecordStore.WithSpecialForces(RealmEventRecordStore.WithWipes(
+                    raid.Forced ? RealmEventRecordStore.ForcedRaidPrefix + reason : reason, wipes), specialForcesJoined);
+            RealmEventRecords.Finish(raid.Definition.Id, outcome, details, raid.Support.Length);
+            AutonomousEpicSpecialForces.RaidEnded(raid.Definition.Id, AutonomousEpicSpecialForces.RecordOutcome(outcome, wipes), raid.Forced);
+            Log.Info($"REALM_RAID_ENDED event={raid.Definition.Id} outcome=\"{outcome}\" support={raid.Support.Length} reason=\"{reason}\"" +
+                     (specialForcesJoined > 0 ? $" specialForcesJoined={specialForcesJoined}" : ""));
             // Owner 2026-10-07: every realm hears when a raid (automatic or forced) brings down the final boss of an
             // epic dungeon, Summoner's Hall or Darkness Falls.
             if (outcome == "Boss defeated" && raid.Definition.IsDungeon)

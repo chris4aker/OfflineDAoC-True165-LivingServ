@@ -60,7 +60,7 @@ public static class ForkBuildInfo
                $" living={(livingParts.Length == 0 ? "off" : livingParts)} bot_schedule={AutonomousBotSchedule.CurrentMode.ToString().ToLowerInvariant()}" +
                $" incoming_fire={On(Properties.BOT_INCOMING_FIRE_REACTION)} era_names={On(Properties.BOT_ERA_NAMES)}" +
                $" xp_by_level={(string.IsNullOrWhiteSpace(Properties.XP_RATE_BY_LEVEL) && string.IsNullOrWhiteSpace(Properties.BOT_XP_RATE_BY_LEVEL) ? "off" : "on")}" +
-               $" quest_xp_by_level={On(Properties.QUEST_XP_BY_LEVEL)}";
+               $" quest_xp_by_level={On(Properties.QUEST_XP_BY_LEVEL)} special_forces={On(Properties.BOT_EPIC_SPECIAL_FORCES)}";
     }
 
     [GameServerStartedEvent]

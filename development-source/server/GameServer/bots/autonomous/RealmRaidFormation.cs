@@ -38,7 +38,7 @@ namespace DOL.GS
             IReadOnlyCollection<Vector3> occupied, (Vector3 Hazard, float Radius) keepOut, out Vector3 position)
         {
             position = default;
-            if (slot < 0 || slot >= RealmRaidRecruitmentPolicy.MaximumParties || nav == null || zone == null || !nav.IsAvailable || !nav.HasNavmesh(zone)) return false;
+            if (slot < 0 || slot >= RealmRaidRecruitmentPolicy.FormationSlots || nav == null || zone == null || !nav.IsAvailable || !nav.HasNavmesh(zone)) return false;
             bool epicInterior = zone.ID is 60 or 160 or 191 or 248 or 249;
             bool Valid(Vector3 floor) => nav.HasLineOfSight(zone, center, floor, nav.DefaultFilters) &&
                 AutonomousZoneItinerary.HasCompleteCorridor(nav, zone, center, floor) &&

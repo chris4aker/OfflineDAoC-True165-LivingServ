@@ -6,6 +6,20 @@ public static class RealmRaidRecruitmentPolicy
 {
     public const int MaximumBots = 300;
     public const int MaximumParties = (MaximumBots + 7) / 8;
+    /// <summary>Formation slots a raid has: the realm's 38 parties plus the Epic Special Forces' three (Living Server, off by
+    /// default; with them off no party takes a slot past the realm's 38).</summary>
+    public const int FormationSlots = MaximumParties + AutonomousEpicSpecialForces.MaximumParties;
+
+    /// <summary>
+    /// Why a raid cannot take another party, or null when it can. The realm's limits (38 parties, 300 bots) count only
+    /// the realm's own parties and bots; the Epic Special Forces come on top of them, up to their own three parties.
+    /// </summary>
+    public static string PartyCapRefusal(bool specialForces, int realmParties, int realmBots, int specialForcesParties, int joining) =>
+        specialForces
+            ? specialForcesParties >= AutonomousEpicSpecialForces.MaximumParties
+                ? $"the raid already has {specialForcesParties} Special Forces parties" : null
+            : realmParties >= MaximumParties ? $"the raid already has its {MaximumParties} parties"
+            : realmBots + joining > MaximumBots ? $"the raid would have {realmBots + joining} of its {MaximumBots} bots" : null;
     public const int AutonomousMinimumPresent = 200;
     public const int MinimumParties = AutonomousMinimumPresent / 8;
     public const long AutonomousMinimumStagingMilliseconds = 15 * 60_000L;

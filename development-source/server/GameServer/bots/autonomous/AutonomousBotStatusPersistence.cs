@@ -48,7 +48,7 @@ public static class AutonomousBotStatusPersistence
 
     public static void Queue(GameBot bot, bool includeInventory = false)
     {
-        if (bot?.IsAutonomousWorldBot == true && bot.DatabaseID > 0 && bot.PersistentRecord != null)
+        if (bot?.IsAutonomousWorldBot == true && bot.DatabaseID > 0 && bot.PersistentRecord != null && !bot.IsEpicSpecialForce)
         {
             lock (PendingGate)
             {
@@ -80,7 +80,7 @@ public static class AutonomousBotStatusPersistence
     /// </summary>
     public static void QueueLogout(GameBot bot)
     {
-        if (bot?.IsAutonomousWorldBot != true || bot.DatabaseID <= 0 || bot.PersistentRecord == null)
+        if (bot?.IsAutonomousWorldBot != true || bot.DatabaseID <= 0 || bot.PersistentRecord == null || bot.IsEpicSpecialForce)
             return;
         lock (PendingGate)
             QueueLogoutLocked(bot);
@@ -138,7 +138,7 @@ public static class AutonomousBotStatusPersistence
     /// </summary>
     public static void QueueGroupMetadata(GameBot bot)
     {
-        if (bot?.IsAutonomousWorldBot != true || bot.DatabaseID <= 0 || bot.PersistentRecord == null)
+        if (bot?.IsAutonomousWorldBot != true || bot.DatabaseID <= 0 || bot.PersistentRecord == null || bot.IsEpicSpecialForce)
             return;
         lock (PendingGate)
         {

@@ -68,6 +68,9 @@ public sealed record SocialExpansionSettings
     /// switch names a player wrote by hand, which the tab keeps as written.
     /// </summary>
     public string OriginalBossMechanics { get; init; } = "";
+    /// <summary>Living Server's Epic Special Forces for Horn raids (bot_epic_special_forces). Off by default; not part of
+    /// the suggested settings (their handed-out gear is the one exception to gamebots earning their armor).</summary>
+    public bool EpicSpecialForces { get; init; }
     /// <summary>
     /// Power regeneration multiplier for players and bots alike (Living Server 1.1.2: 1.5; 1 is the classic pre-1.87 rate,
     /// which patch 1.87 doubled).
@@ -148,6 +151,7 @@ public sealed record SocialExpansionSettings
         ("xp_rate_by_level", "rates", "Living Server, off by default: an XP rate by level range for real player characters, for example 1-19:3;20-34:5;35-50:12. Inside a listed range its rate replaces xp_rate (the launcher's Player XP rate); other levels keep xp_rate. In RvR zones the RvR rate still multiplies it. Empty (the default) or an invalid value keeps the flat xp_rate."),
         ("bot_xp_rate_by_level", "rates", "Living Server, off by default: an XP rate by level range for autonomous gamebots, for example 1-19:1.5;20-34:2.5;35-50:6. Inside a listed range its rate replaces bot_xp_rate (the launcher's gamebot XP rate); other levels keep bot_xp_rate. In RvR zones the RvR rate still multiplies it. Empty (the default) or an invalid value keeps the flat bot_xp_rate. Hired companions follow xp_rate_by_level, as they follow the Player XP rate."),
         ("bot_epic_encounter_tactics", "bots", "Living Server, off by default in True 1.65: gamebot raids play Living Server's tactics for eight epic encounters (Scurceol Hyrde's orbs, Orshom's Fire, Aidon's illusions, Black Lady and the Ancient Black Oak, Nosdoden's waves, Xanxicar's stomp) on top of True 1.65's own boss rules. Off: True 1.65's boss rules only."),
+        ("bot_epic_special_forces", "bots", "Living Server, off by default in True 1.65: after a Horn raid's first wipe at its final encounter, up to 24 of the realm's Epic Special Forces (level-50 gamebots in the companions' endgame kit, made for that raid only and never saved) join it, fewer after wins they helped; an encounter lost here the last two times brings them from the start. Their handed-out gear is the one exception to gamebots earning their armor. Off: True 1.65's own wipe rules only."),
         ("epic_original_mechanics", "world", "Living Server, empty (off) by default in True 1.65: original OpenDAoC boss mechanics to turn back on, by switch name, comma separated (AllowHorsemenTetherHeal, AllowFunusWeaponPuzzle, AllowSacristanPatrol, AllowSoulReckonerFullShield, AllowSoulReckonerSmallRoom, AllowAroonDamageOrder, AllowGalladoriaBridgeSpot, AllowFullFirePatches, AllowEarthmenderClassPuzzle, AllowEarthmendersPassive, AllowEarthmenderQuickReset, AllowEarthmenderMutualHeal, AllowBeathaHealsXaga, AllowFairyFlight, AllowGovannonFullHealth, AllowKvasirColdHeal, AllowTuscarTwinHeal), or all. Each makes its boss harder than True 1.65 has it. Read at server start."),
         ("quest_xp_by_level", "rates", "Living Server, off by default in True 1.65: quest experience follows xp_rate_by_level. When true and one of its ranges covers the player's level, the XP of data quests, reward quests and the battleground quests is multiplied by that level's rate, and one quest payment never pays more than one level. False: quest XP exactly as True 1.65 pays it."),
         ("mana_regen_amount_modifier", "rates", "Power regeneration multiplier for real players and gamebots alike. 1 is the classic rate before patch 1.87, which doubled it; 1.5 (the Living Server default) is a middle ground. Set in the launcher's Living Server tab."),
@@ -194,6 +198,7 @@ public sealed record SocialExpansionSettings
         ["bot_era_names"] = Bool(EraNames),
         ["bot_epic_encounter_tactics"] = Bool(EpicTactics),
         ["epic_original_mechanics"] = OriginalBossMechanics.Trim(),
+        ["bot_epic_special_forces"] = Bool(EpicSpecialForces),
         ["xp_rate_by_level"] = PlayerXpByLevel.Trim(),
         ["bot_xp_rate_by_level"] = BotXpByLevel.Trim(),
         ["quest_xp_by_level"] = Bool(QuestXpByLevel),
@@ -337,6 +342,7 @@ public sealed record SocialExpansionSettings
             IncomingFireReaction = ReadBool("bot_incoming_fire_reaction", d.IncomingFireReaction),
             EraNames = ReadBool("bot_era_names", d.EraNames),
             EpicTactics = ReadBool("bot_epic_encounter_tactics", d.EpicTactics),
+            EpicSpecialForces = ReadBool("bot_epic_special_forces", d.EpicSpecialForces),
             OriginalBossMechanics = stored.TryGetValue("epic_original_mechanics", out string? mechanics) ? mechanics?.Trim() ?? "" : "",
             ManaRegenModifier = manaRate,
             ManaHalvedBelowHalf = ReadBool("mana_regen_amount_halved_below_50_percent", d.ManaHalvedBelowHalf),
@@ -363,12 +369,13 @@ public sealed record SocialExpansionSettings
         LivingNemesis = false, ScheduleMode = "off", LivingBreaks = false, LivingBodyLanguage = false, LivingBeggars = false,
         LivingDeeds = false, LivingStorylines = false, LivingCharacters = false, LivingRumours = false,
         LivingHolidays = false, LivingLeeroy = false, QuestXpByLevel = false, IncomingFireReaction = false, EraNames = false,
-        EpicTactics = false, OriginalBossMechanics = "",
+        EpicTactics = false, OriginalBossMechanics = "", EpicSpecialForces = false,
     };
 
     /// <summary>True when every feature and both XP ranges are off.</summary>
     public bool IsAllOff => !BotGuilds && !Personalities && !Voices && !AnyLiving && PlayerXpByLevel.Trim() == "" && BotXpByLevel.Trim() == "" &&
-                            !QuestXpByLevel && !IncomingFireReaction && !EraNames && !EpicTactics && OriginalBossMechanics.Trim() == "";
+                            !QuestXpByLevel && !IncomingFireReaction && !EraNames && !EpicTactics && OriginalBossMechanics.Trim() == "" &&
+                            !EpicSpecialForces;
 
     /// <summary>Why these settings can't be saved, or null when they can.</summary>
     public string? Validate()

@@ -117,11 +117,20 @@ on /broadcast to the players of the realm in the speaker's region, questions on 
 storyline stays on the channel and in the region its first line went to, so a /broadcast scene is heard where it
 started and nowhere else. Bots answering a GM's /faction line answer on /faction.
 
+**Quest fixes** (always on; no quest's rules change): the journal holds 25 quests and refuses a new one before
+anything is saved (an older save keeps all its quests and says so at login); a kill counts once for a quest, however
+many groupmates are told of it; a dead group leader gets no credit from the gamebots fighting on; no second copy of a
+delivery item; a first delivery back to its giver is the player's to bring; an abandoned repeatable quest starts over.
+With `quest_xp_by_level` on, the scripted, battleground, reward and bounty quests follow the player's quest rate too;
+off, they pay exactly as True 1.65 does.
+
 ## Not carried over
 
 **Left behind on purpose** (they break True 1.65's rules, or True 1.65 has its own):
 - Epic Special Forces (gamebots handed epic gear) and faster power regeneration (the tab keeps True 1.65's rate).
-- The Atlas daily quests and the Hearth quest chains, Living Server's quest markers and journal: True 1.65 has its own.
+- The Atlas daily, weekly and monthly quests (freeshard content True 1.65 removed; waiting for the owner).
+- Living Server's quest markers, dependency forms and the GM's /epic: True 1.65 has its own markers, objective
+  highlights, /questguide and chain rule (it links chains by name and level, not by the quest IDs /epic reads).
 - Bot logins and logouts by schedule, "brb" breaks and linkdeads: True 1.65's population system does this.
 - Flanking, and Living Server's fixes to 0.37's gamebot AI where True 1.65 has its own (the port log lists each).
 - Everything for the original client.
@@ -132,7 +141,7 @@ started and nowhere else. Bots answering a GM's /faction line answer on /faction
   would change how True 1.65's gamebots hunt, so they wait for a play test.
 
 **Later parts of Living Server:**
-- The Epic Special Forces and Living Server's quest journal, epic chains and quest fixes (in progress).
+- The Epic Special Forces.
 - From Living Server 1.2, once it is released: bot-led groups, RvR perception, the lore, raid skill.
 - The route fixes and the diagnostics.
 
@@ -141,7 +150,7 @@ started and nowhere else. Bots answering a GM's /faction line answer on /faction
 On the current base (`f68cc75`), 2026-11-14:
 
 - **Build:** the whole solution builds with 0 errors (.NET 10).
-- **Automated tests:** all 6,740 pass on the latest run. True 1.65's own
+- **Automated tests:** all 6,854 pass on the latest run (branch `living-server/quests`, 2026-11-14). True 1.65's own
   `UT_BotNameService.Claims_FiftyThousandPerRealmUniqueAndNeverThrow` fails on some runs: it fails the same way on
   unmodified True 1.65 v0.7 (4 of 5 runs on 2026-11-14, a name claim waiting over 250 ms for the registry's lock).
 - **The launcher's tests** need Windows; they build here and run in the Windows CI workflow
